@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gubby Test Zone</title>
+<style>
+  :root { --bg: #1d1a2b; --panel: #2a2640; --panel2: #353052; --text: #f1edff; --muted: #a59fc4; --accent: #7ee0a1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 2px solid var(--panel2); }
+  header h1 { margin: 0; font-size: 1.2rem; color: var(--accent); }
+  header .hint { color: var(--muted); font-size: .85rem; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; padding: 14px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border-radius: 10px; padding: 12px; }
+  h2 { margin: 0 0 8px; font-size: .95rem; color: var(--muted); font-weight: 600; }
+  canvas { display: block; image-rendering: pixelated; max-width: 100%; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  label { color: var(--muted); font-size: .85rem; display: flex; gap: 6px; align-items: center; }
+  select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid #4a4470; border-radius: 6px; padding: 4px 6px; font: inherit; }
+  input[type=range] { width: 120px; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid #4a4470; border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; }
+  button:hover { background: #443d68; }
+  button.on { background: #3fa468; border-color: var(--accent); }
+  #strip { overflow-x: auto; }
+  #frameInfo { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
+  #actors { list-style: none; margin: 6px 0 0; padding: 0; max-height: 180px; overflow: auto; }
+  #actors li { display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; border-radius: 6px; }
+  #actors li:nth-child(odd) { background: #2f2a49; }
+  .checker { background: repeating-conic-gradient(#3a3556 0 25%, #332f4c 0 50%) 0 0 / 16px 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gubby Test Zone</h1>
+  <span class="hint">Play any sprite animation on its own or in a game-like scene (path, garden beds, grass, pad). Space: pause · ←/→: step frames · R: reload sprites</span>
+  <span style="flex:1"></span>
+  <button id="reload" title="Reload the sprite files from disk (after regenerating a sheet)">↻ Reload sprites</button>
+</header>
+
+<main>
+  <!-- Left: the scene -->
+  <section>
+    <h2>Scene</h2>
+    <div class="row">
+      <label>Character <select id="addWho"></select></label>
+      <label>Behaviour
+        <select id="addHow">
+          <option value="wanderPath">wander the path (like the game)</option>
+          <option value="wanderGrass">wander the grass</option>
+          <option value="walkInPlace">walk in place</option>
+          <option value="stand">stand still</option>
+        </select>
+      </label>
+      <button id="add">Add</button>
+      <button id="add5">Add 5</button>
+      <button id="clear">Clear</button>
+    </div>
+    <div class="row">
+      <label>Speed <input id="speed" type="range" min="0.1" max="3" step="0.05" value="1"> <span id="speedVal">1×</span></label>
+      <label>Zoom <select id="zoom"><option>1</option><option selected>2</option><option>3</option></select></label>
+      <label><input id="feet" type="checkbox"> feet markers</label>
+      <label><input id="shadows" type="checkbox" checked> shadows</label>
+      <button id="pause">Pause</button>
+    </div>
+    <canvas id="scene" width="480" height="330"></canvas>
+    <ul id="actors"></ul>
+  </section>
+
+  <!-- Right: the inspector -->
+  <section>
+    <h2>Inspector</h2>
+    <div class="row">
+      <label>Character <select id="insWho"></select></label>
+      <label>Animation <select id="insAnim"></select></label>
+    </div>
+    <div class="row">
+      <label>Zoom <input id="insZoom" type="range" min="1" max="16" step="1" value="4"></label>
+      <label><input id="insFlip" type="checkbox"> flip</label>
+      <label>Background
+        <select id="insBg">
+          <option value="checker">checker</option>
+          <option value="#b8946a">path</option>
+          <option value="#6fbf5a">grass</option>
+          <option value="#a9a9a6">pad</option>
+          <option value="#1d1a2b">dark</option>
+          <option value="#ffffff">white</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <button id="prev">◀</button>
+      <button id="play" class="on">Playing</button>
+      <button id="next">▶</button>
+      <label><input id="onion" type="checkbox"> onion skin</label>
+    </div>
+    <canvas id="ins" width="320" height="320" class="checker"></canvas>
+    <div id="frameInfo"></div>
+    <h2 style="margin-top:10px">Frames</h2>
+    <div id="strip"><canvas id="stripCanvas" height="70"></canvas></div>
+  </section>
+</main>
+
+<script>
+// =====================================================================
+// Assets: the same sprite files the game embeds. Add a character here to make it testable.
+// Each character has named animations; `walk` and `stand` are what the scene behaviours use.
+// An animation: { img, fw, fh, row, frames: [frame indices], ms or durations: [...] }, or for sheets with
+// uneven frames (like the plant growth stages) { img, rects: [{ x, y, w, h }, ...], frames, ms }, drawn
+// bottom-aligned so the dirt mound stays put.
+// `scale` matches how big the game draws it; `foot` is the pixel row (in the frame) where the feet touch
+// the ground, so everything stands on the same line.
+// =====================================================================
+const FILES = {
+  farmer: 'sprites/farmer-sheet.png', farmerJson: 'sprites/farmer-sheet.json',
+  gubby: 'sprites/gubby-sheet.png', gubbyJson: 'sprites/gubby-sheet.json',
+  benderWalk: 'sprites/bender-walk-sheet.jpg', benderStand: 'sprites/bender-stand.png',
+  carrotPlant: 'sprites/carrot-plant.png',
+};
+const images = {};
+let CHARS = {};   // name -> { scale, foot, anims: { name: anim }, faces: 'left' | 'right' }
+
+function loadImage(src, bust) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => res(null);   // missing files just leave that character out
+    img.src = src + (bust ? `?t=${Date.now()}` : '');
+  });
+}
+const loadJson = (src, bust) => fetch(src + (bust ? `?t=${Date.now()}` : '')).then(r => r.ok ? r.json() : null).catch(() => null);
+
+async function loadAssets(bust = false) {
+  const [farmer, farmerJson, gubby, gubbyJson, benderWalk, benderStand, carrotPlant] = await Promise.all([
+    loadImage(FILES.farmer, bust), loadJson(FILES.farmerJson, bust),
+    loadImage(FILES.gubby, bust), loadJson(FILES.gubbyJson, bust),
+    loadImage(FILES.benderWalk, bust), loadImage(FILES.benderStand, bust),
+    loadImage(FILES.carrotPlant, bust),
+  ]);
+  const chars = {};
+
+  // Farmers (the Carrot Farmer gang): one row per farmer, named by the sheet's json (Mafioso, Caporegime,
+  // Contractee, Consigliere, Soldier). A walk cycle; standing holds the frame with all four paws planted.
+  if (farmer && farmerJson) {
+    const fw = farmerJson.frameWidth, fh = farmerJson.frameHeight;
+    Object.entries(farmerJson.rows).forEach(([name, r], i) => {
+      const frames = [...Array(r.frames).keys()];
+      const title = name[0].toUpperCase() + name.slice(1);   // "mafioso" -> "Mafioso"
+      chars[title] = {
+        farmer: true,
+        scale: 0.8, foot: 78, faces: 'left',
+        anims: {
+          walk: { img: farmer, fw, fh, row: r.row, frames, ms: r.ms },
+          stand: { img: farmer, fw, fh, row: r.row, frames: [2], ms: 1000 },
+        },
+      };
+    });
+  }
+
+  // Gubby (player size) and a baby gubby (helper size): every animation in the json.
+  if (gubby && gubbyJson) {
+    const anims = {};
+    for (const [name, a] of Object.entries(gubbyJson.animations)) {
+      anims[name] = { img: gubby, fw: gubbyJson.frameWidth, fh: gubbyJson.frameHeight, row: a.row, frames: a.frames, durations: a.durations };
+    }
+    // scene behaviours pick the left/right version themselves
+    const dir = { walk: ['hop_left', 'hop_right'], stand: ['idle_left', 'idle_right'] };
+    chars['Gubby'] = { scale: 1.25, foot: 62, faces: 'both', dir, anims };
+    chars['Baby gubby'] = { scale: 0.75, foot: 62, faces: 'both', dir, anims };
+  }
+
+  // Bender: the walking GIF strip, and a still image facing right.
+  if (benderWalk) {
+    chars['Bender'] = {
+      scale: 88 / 132, foot: 98, faces: 'right', noFlipWalk: true,
+      anims: {
+        walk: { img: benderWalk, fw: 132, fh: 98, row: 0, frames: [...Array(14).keys()], ms: 100 },
+        ...(benderStand ? { stand: { img: benderStand, fw: benderStand.width, fh: benderStand.height, row: 0, frames: [0], ms: 1000,
+          scale: 48 / 72 } } : {}),
+      },
+    };
+  }
+  // Carrot plant (the Carrot Patch in the beds): six growth stages, bare dirt -> giant carrot, then pulled and
+  // replanted. The game steps through them over one 1.5s toss interval, so 250ms a stage. Drawn at 3x.
+  if (carrotPlant) {
+    chars['Carrot plant'] = {
+      scale: 3, plant: true,
+      anims: {
+        grow: { img: carrotPlant, frames: [0, 1, 2, 3, 4, 5], ms: 250, rects: [
+          { x: 2, y: 0, w: 10, h: 14 }, { x: 16, y: 0, w: 10, h: 14 }, { x: 30, y: 0, w: 10, h: 14 },
+          { x: 2, y: 14, w: 10, h: 25 }, { x: 16, y: 14, w: 10, h: 25 }, { x: 30, y: 14, w: 10, h: 25 },
+        ] },
+      },
+    };
+  }
+  CHARS = chars;
+}
+
+// =====================================================================
+// Animation clock: every animation runs off a shared, pausable, speed-adjustable clock.
+// =====================================================================
+let clock = 0, speed = 1, paused = false, last = performance.now();
+const frameAt = (anim, t) => {
+  const d = anim.durations || anim.frames.map(() => anim.ms);
+  const total = d.reduce((a, b) => a + b, 0);
+  let m = ((t % total) + total) % total;
+  for (let i = 0; i < d.length; i++) { if (m < d[i]) return i; m -= d[i]; }
+  return 0;
+};
+
+// Where frame i sits in its sheet, and the row in it where the feet (or the dirt) touch the ground.
+function frameRect(anim, i, ch) {
+  if (anim.rects) { const r = anim.rects[anim.frames[i]]; return { sx: r.x, sy: r.y, sw: r.w, sh: r.h, foot: r.h }; }
+  const foot = anim.foot ?? (ch && anim.img === ch.anims.walk?.img ? ch.foot : anim.fh);
+  return { sx: anim.frames[i] * anim.fw, sy: anim.row * anim.fh, sw: anim.fw, sh: anim.fh, foot };
+}
+// the biggest frame in an animation (to size the inspector)
+const animSize = anim => anim.rects
+  ? { w: Math.max(...anim.rects.map(r => r.w)), h: Math.max(...anim.rects.map(r => r.h)) } : { w: anim.fw, h: anim.fh };
+
+// Draw one frame of an animation with its feet at (x, footY).
+function drawFrame(g, ch, anim, i, x, footY, scale, flip, alpha = 1) {
+  const s = scale * (anim.scale ? anim.scale / ch.scale : 1);
+  const { sx, sy, sw, sh, foot } = frameRect(anim, i, ch);
+  const w = sw * s, h = sh * s;
+  g.save();
+  g.globalAlpha = alpha;
+  g.translate(Math.round(x), Math.round(footY));
+  if (flip) g.scale(-1, 1);
+  g.imageSmoothingEnabled = s < 1;
+  g.drawImage(anim.img, sx, sy, sw, sh, Math.round(-w / 2), Math.round(-foot * s), Math.round(w), Math.round(h));
+  g.restore();
+}
+
+// =====================================================================
+// Scene: a small slice of the game field (path on top, garden beds down both sides of the grass, pad at the
+// bottom) with actors in it. Plants go into free spots in the beds; everyone else walks or stands.
+// =====================================================================
+const scene = document.getElementById('scene'), sg = scene.getContext('2d');
+const SW = 480, SH = 330, TOP = 34, PATH = 64, PAD = 50;   // TOP: headroom above the path for tall ears and hats
+const BED = 60;                                             // width of the garden beds (same as the game)
+const GRASS_Y0 = TOP + PATH, GRASS_Y1 = SH - PAD;
+// planting spots: a column down the middle of each bed, alternating left and right like the game
+const BED_SLOTS = [];
+for (let y = GRASS_Y0 + 62; y <= GRASS_Y1 - 16; y += 48) for (const x of [BED / 2, SW - BED / 2]) BED_SLOTS.push({ x, y });
+let actors = [];
+const rand = (a, b) => a + Math.random() * (b - a);
+
+function addActor(who, how) {
+  const ch = CHARS[who]; if (!ch) return;
+  if (ch.plant) {   // plants go into the next free bed spot
+    const slot = BED_SLOTS.find(s => !actors.some(a => a.slot === s));
+    if (!slot) return;
+    actors.push({ who, how: 'planted', slot, x: slot.x, y: slot.y, t0: rand(0, 1500), id: Math.random() });
+    actors.sort((a, b) => a.y - b.y);
+    renderActorList();
+    return;
+  }
+  const onPath = how === 'wanderPath';
+  const y = onPath ? TOP + PATH / 2 + 18 : rand(GRASS_Y0 + 40, GRASS_Y1 - 10);
+  const [x0, x1] = onPath ? [40, SW - 40] : [BED + 24, SW - BED - 24];   // grass walkers stay off the beds
+  actors.push({ who, how, x: rand(x0, x1), y, tx: rand(x0, x1), ty: y, wait: rand(0, 1.5),
+    facingRight: Math.random() < 0.5, moving: how === 'walkInPlace', t0: rand(0, 2000), id: Math.random() });
+  actors.sort((a, b) => a.y - b.y);
+  renderActorList();
+}
+
+function updateActors(dt) {
+  for (const a of actors) {
+    if (a.how === 'stand' || a.how === 'planted') { a.moving = false; continue; }
+    if (a.how === 'walkInPlace') { a.moving = true; continue; }
+    if (a.wait > 0) { a.wait -= dt; a.moving = false; continue; }
+    const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+    if (d < 2) {   // arrived: hang around, then pick a new spot (like the game's path walkers)
+      a.wait = rand(1, 3); a.moving = false;
+      const [x0, x1] = a.how === 'wanderGrass' ? [BED + 24, SW - BED - 24] : [30, SW - 30];
+      a.tx = Math.min(x1, Math.max(x0, a.x + rand(-180, 180)));
+      if (a.how === 'wanderGrass') a.ty = Math.min(GRASS_Y1 - 8, Math.max(GRASS_Y0 + 30, a.y + rand(-60, 60)));
+      continue;
+    }
+    const step = Math.min(d, 40 * dt);
+    a.x += dx / d * step; a.y += dy / d * step;
+    if (Math.abs(dx) > 0.5) a.facingRight = dx > 0;
+    a.moving = true;
+  }
+  actors.sort((a, b) => a.y - b.y);
+}
+
+function animFor(ch, a) {
+  if (ch.plant) return { anim: ch.anims.grow, flip: false };
+  const key = a.moving ? 'walk' : 'stand';
+  if (ch.dir) return { anim: ch.anims[ch.dir[key][a.facingRight ? 1 : 0]], flip: false };
+  const anim = ch.anims[key] || ch.anims.walk;
+  if (ch.noFlipWalk && key === 'walk') return { anim, flip: false };
+  // sprites drawn facing left flip to face right, and vice versa
+  return { anim, flip: ch.faces === 'left' ? a.facingRight : !a.facingRight };
+}
+
+function drawScene() {
+  const z = +document.getElementById('zoom').value;
+  if (scene.width !== SW * z) { scene.width = SW * z; scene.height = SH * z; }
+  sg.setTransform(z, 0, 0, z, 0, 0);
+  // ground
+  sg.fillStyle = '#6fbf5a'; sg.fillRect(0, 0, SW, SH);
+  sg.fillStyle = '#8fb8d8'; sg.fillRect(0, 0, SW, TOP);          // a strip of sky above the path
+  sg.fillStyle = '#b8946a'; sg.fillRect(0, TOP, SW, PATH);
+  sg.fillStyle = '#a9a9a6'; sg.fillRect(0, SH - PAD, SW, PAD);
+  sg.fillStyle = 'rgba(0,0,0,0.08)';
+  for (let i = 0; i < 40; i++) sg.fillRect(BED + (i * 97) % (SW - 2 * BED), GRASS_Y0 + 8 + ((i * 53) % (GRASS_Y1 - GRASS_Y0 - 16)), 4, 3);
+  // garden beds down both sides: soil with furrows inside a wooden border (like the game)
+  for (const x of [0, SW - BED]) {
+    sg.fillStyle = '#8a5a33'; sg.fillRect(x, GRASS_Y0, BED, GRASS_Y1 - GRASS_Y0);
+    sg.fillStyle = '#6b4a2e'; sg.fillRect(x + 6, GRASS_Y0 + 6, BED - 12, GRASS_Y1 - GRASS_Y0 - 12);
+    sg.fillStyle = 'rgba(0,0,0,0.18)';
+    for (let y = GRASS_Y0 + 16; y < GRASS_Y1 - 10; y += 14) sg.fillRect(x + 10, y, BED - 20, 2);
+  }
+  const showFeet = document.getElementById('feet').checked, shadows = document.getElementById('shadows').checked;
+  for (const a of actors) {
+    const ch = CHARS[a.who]; if (!ch) continue;
+    const { anim, flip } = animFor(ch, a);
+    const i = frameAt(anim, clock + a.t0);
+    if (shadows && !ch.plant) {
+      sg.fillStyle = 'rgba(0,0,0,0.2)';
+      sg.beginPath(); sg.ellipse(a.x, a.y, anim.fw * ch.scale * 0.32, 4, 0, 0, Math.PI * 2); sg.fill();
+    }
+    drawFrame(sg, ch, anim, i, a.x, a.y, ch.scale, flip);
+    if (showFeet) { sg.fillStyle = '#ff3b6b'; sg.fillRect(Math.round(a.x) - 3, Math.round(a.y), 7, 1); }
+  }
+}
+
+function renderActorList() {
+  const ul = document.getElementById('actors');
+  ul.innerHTML = '';
+  actors.forEach(a => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${a.who} · <span style="color:var(--muted)">${a.how}</span></span>`;
+    const del = document.createElement('button'); del.textContent = '✕';
+    del.onclick = () => { actors = actors.filter(b => b !== a); renderActorList(); };
+    li.appendChild(del); ul.appendChild(li);
+  });
+}
+
+// =====================================================================
+// Inspector: one animation, big, with frame stepping and a frame strip.
+// =====================================================================
+const ins = document.getElementById('ins'), ig = ins.getContext('2d');
+const stripC = document.getElementById('stripCanvas'), stg = stripC.getContext('2d');
+let insPlaying = true, insFrame = 0, insClock = 0;
+
+const insChar = () => CHARS[document.getElementById('insWho').value];
+const insAnim = () => insChar()?.anims[document.getElementById('insAnim').value];
+
+function fillAnimSelect() {
+  const ch = insChar(), sel = document.getElementById('insAnim');
+  sel.innerHTML = '';
+  if (!ch) return;
+  for (const name of Object.keys(ch.anims)) sel.add(new Option(name, name));
+  insFrame = 0; insClock = 0;
+  drawStrip();
+}
+
+function drawInspector() {
+  const ch = insChar(), anim = insAnim(); if (!ch || !anim) return;
+  const z = +document.getElementById('insZoom').value;
+  const s = (anim.scale ? anim.scale : 1) * z, size = animSize(anim);
+  const w = Math.ceil(size.w * s), h = Math.ceil(size.h * s);
+  if (ins.width !== w || ins.height !== h) { ins.width = w; ins.height = h; }
+  const bg = document.getElementById('insBg').value;
+  ins.className = bg === 'checker' ? 'checker' : '';
+  ig.clearRect(0, 0, w, h);
+  if (bg !== 'checker') { ig.fillStyle = bg; ig.fillRect(0, 0, w, h); }
+  if (insPlaying) insFrame = frameAt(anim, insClock);
+  const flip = document.getElementById('insFlip').checked;
+  // frames are drawn centred and bottom-aligned, so uneven frames (plant stages) stand on the same ground
+  const draw = (i, alpha) => {
+    const r = frameRect(anim, i, ch), fw = r.sw * s, fh = r.sh * s;
+    ig.save(); ig.globalAlpha = alpha; ig.imageSmoothingEnabled = false;
+    if (flip) { ig.translate(w, 0); ig.scale(-1, 1); }
+    ig.drawImage(anim.img, r.sx, r.sy, r.sw, r.sh, Math.round((w - fw) / 2), h - fh, fw, fh);
+    ig.restore();
+  };
+  if (document.getElementById('onion').checked && anim.frames.length > 1) {
+    draw((insFrame - 1 + anim.frames.length) % anim.frames.length, 0.25);
+  }
+  draw(insFrame, 1);
+  const d = anim.durations ? anim.durations[insFrame] : anim.ms, r = frameRect(anim, insFrame, ch);
+  const where = anim.rects ? `sheet rect ${r.sx},${r.sy}` : `sheet column ${anim.frames[insFrame]}, row ${anim.row}`;
+  document.getElementById('frameInfo').textContent =
+    `frame ${insFrame + 1} / ${anim.frames.length} · ${where} · ${d} ms · ${r.sw}×${r.sh}`;
+  drawStrip();
+}
+
+function drawStrip() {
+  const ch = insChar(), anim = insAnim(); if (!anim) return;
+  const size = animSize(anim), th = 64, s = th / size.h, tw = Math.ceil(size.w * s);
+  stripC.width = tw * anim.frames.length + 2; stripC.height = th + 4;
+  stg.fillStyle = '#332f4c'; stg.fillRect(0, 0, stripC.width, stripC.height);
+  stg.imageSmoothingEnabled = s < 1;
+  anim.frames.forEach((f, i) => {
+    const r = frameRect(anim, i, ch), fw = Math.round(r.sw * s), fh = Math.round(r.sh * s);
+    stg.drawImage(anim.img, r.sx, r.sy, r.sw, r.sh, i * tw + 1 + Math.round((tw - fw) / 2), 2 + th - fh, fw, fh);
+    if (i === insFrame) { stg.strokeStyle = '#7ee0a1'; stg.lineWidth = 2; stg.strokeRect(i * tw + 1, 1, tw, th + 2); }
+  });
+}
+stripC.onclick = e => {   // click a frame in the strip to jump to it
+  const anim = insAnim(); if (!anim) return;
+  const tw = stripC.width / anim.frames.length;
+  insFrame = Math.min(anim.frames.length - 1, Math.floor(e.offsetX * (stripC.width / stripC.clientWidth) / tw));
+  setInsPlaying(false);
+};
+
+function setInsPlaying(on) {
+  insPlaying = on;
+  const b = document.getElementById('play');
+  b.textContent = on ? 'Playing' : 'Paused'; b.classList.toggle('on', on);
+}
+function stepIns(d) {
+  const anim = insAnim(); if (!anim) return;
+  setInsPlaying(false);
+  insFrame = (insFrame + d + anim.frames.length) % anim.frames.length;
+}
+
+// =====================================================================
+// Wiring
+// =====================================================================
+function fillCharSelects() {
+  for (const id of ['addWho', 'insWho']) {
+    const sel = document.getElementById(id), prev = sel.value;
+    sel.innerHTML = '';
+    for (const name of Object.keys(CHARS)) sel.add(new Option(name, name));
+    if (CHARS[prev]) sel.value = prev;
+  }
+  fillAnimSelect();
+}
+
+// plants always go into a bed spot, so the behaviour menu reads "planted" for them
+document.getElementById('addWho').onchange = () => {
+  const plant = CHARS[addWho.value]?.plant, how = document.getElementById('addHow');
+  how.disabled = !!plant;
+  let opt = how.querySelector('option[value=planted]');
+  if (plant && !opt) { opt = new Option('planted in a bed', 'planted'); how.add(opt); }
+  if (plant) how.value = 'planted'; else { opt?.remove(); if (how.value === 'planted') how.value = 'wanderPath'; }
+};
+document.getElementById('add').onclick = () => addActor(addWho.value, addHow.value);
+document.getElementById('add5').onclick = () => { for (let i = 0; i < 5; i++) addActor(addWho.value, addHow.value); };
+document.getElementById('clear').onclick = () => { actors = []; renderActorList(); };
+document.getElementById('speed').oninput = e => { speed = +e.target.value; speedVal.textContent = speed.toFixed(2).replace(/\.?0+$/, '') + '×'; };
+document.getElementById('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Resume' : 'Pause'; e.target.classList.toggle('on', paused); };
+document.getElementById('insWho').onchange = fillAnimSelect;
+document.getElementById('insAnim').onchange = () => { insFrame = 0; insClock = 0; drawStrip(); };
+document.getElementById('play').onclick = () => setInsPlaying(!insPlaying);
+document.getElementById('prev').onclick = () => stepIns(-1);
+document.getElementById('next').onclick = () => stepIns(1);
+document.getElementById('reload').onclick = async () => {
+  const names = actors.map(a => a.who);
+  await loadAssets(true);
+  fillCharSelects();
+  actors = actors.filter(a => CHARS[a.who]);
+  renderActorList();
+};
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); document.getElementById('pause').click(); setInsPlaying(!paused); }
+  else if (e.code === 'ArrowLeft') stepIns(-1);
+  else if (e.code === 'ArrowRight') stepIns(1);
+  else if (e.code === 'KeyR') document.getElementById('reload').click();
+});
+
+function tick(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!paused) {
+    clock += dt * 1000 * speed;
+    updateActors(dt * speed);
+  }
+  if (insPlaying) insClock += dt * 1000 * speed;
+  drawScene();
+  drawInspector();
+  requestAnimationFrame(tick);
+}
+
+(async () => {
+  await loadAssets();
+  fillCharSelects();
+  // start with the farmer gang wandering the path and a gubby on the grass
+  for (const [name, ch] of Object.entries(CHARS)) if (ch.farmer) addActor(name, 'wanderPath');
+  if (CHARS['Gubby']) addActor('Gubby', 'wanderGrass');
+  for (let i = 0; i < 4; i++) addActor('Carrot plant');
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

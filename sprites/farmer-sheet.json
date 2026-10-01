@@ -1,0 +1,32 @@
+{
+  "image": "farmer-sheet.png",
+  "frameWidth": 80,
+  "frameHeight": 80,
+  "rows": {
+    "mafioso": {
+      "row": 0,
+      "frames": 8,
+      "ms": 110
+    },
+    "caporegime": {
+      "row": 1,
+      "frames": 8,
+      "ms": 110
+    },
+    "contractee": {
+      "row": 2,
+      "frames": 8,
+      "ms": 110
+    },
+    "consigliere": {
+      "row": 3,
+      "frames": 8,
+      "ms": 110
+    },
+    "soldier": {
+      "row": 4,
+      "frames": 8,
+      "ms": 110
+    }
+  }
+}

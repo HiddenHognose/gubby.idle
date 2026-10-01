@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gubby",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\catgi\\gubby idle\\.claude\\serve.ps1"],
+      "port": 8765,
+      "autoPort": true
+    }
+  ]
+}

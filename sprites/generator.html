@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gubby Sprite Maker</title>
+<style>
+  body { margin: 0; padding: 20px; background: #1d1a2b; color: #f1edff; font-family: "Segoe UI", system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; color: #7ee0a1; font-size: 1.4rem; }
+  p { color: #a59fc4; margin: 0 0 16px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 20px; }
+  .card { background: #2a2640; border-radius: 10px; padding: 12px; }
+  .card h2 { margin: 0 0 8px; font-size: .9rem; color: #a59fc4; font-weight: 600; }
+  canvas[hidden] { display: none; }
+  canvas { image-rendering: pixelated; display: block; }
+  .checker { background: repeating-conic-gradient(#3a3556 0 25%, #332f4c 0 50%) 0 0 / 16px 16px; }
+  button { background: #353052; color: #f1edff; border: 1px solid #4a4470; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+</style>
+</head>
+<body>
+<h1>Gubby Sprite Maker</h1>
+<p id="info"></p>
+
+<div class="row">
+  <div class="card"><h2>Close-up: hop, idle and collect, facing left (2×)</h2><canvas id="detail" class="checker"></canvas></div>
+</div>
+<div class="row">
+  <div class="card"><h2>Hop left</h2><canvas id="hopL" class="checker" width="256" height="256"></canvas></div>
+  <div class="card"><h2>Hop right</h2><canvas id="hopR" class="checker" width="256" height="256"></canvas></div>
+  <div class="card"><h2>Idle left</h2><canvas id="idleL" class="checker" width="256" height="256"></canvas></div>
+  <div class="card"><h2>Idle right</h2><canvas id="idleR" class="checker" width="256" height="256"></canvas></div>
+  <div class="card"><h2>Collect left</h2><canvas id="collectL" class="checker" width="256" height="256"></canvas></div>
+  <div class="card"><h2>Collect right</h2><canvas id="collectR" class="checker" width="256" height="256"></canvas></div>
+</div>
+<div class="row">
+  <div class="card"><h2>Final sheet (1×)</h2><canvas id="big" class="checker"></canvas></div>
+  <div class="card"><h2>Export</h2><button id="save">Save to project</button> <button id="dl">Download PNG</button> <span id="saved" style="color:#7ee0a1"></span></div>
+</div>
+
+<canvas id="sheet" hidden></canvas>
+
+<script>
+// Geometry is authored in 32-unit "design space" and rendered at SC pixels per unit.
+const SC = 2, FW = 32 * SC, FH = 32 * SC, GROUND = 30.6;
+
+// 16-bit style palette: soft cool shading ramp on a white bunny
+const PAL = {
+  O: '#3a3656', // silhouette outline
+  P: '#6a6792', // outline on the lit (top-left) side
+  o: '#9094bb', // inner lines between parts
+  W: '#ffffff', w: '#eef1f9', s: '#d3d9ee', S: '#a9b1d3', // fur ramp
+  i: '#c9daf6', I: '#9fb3e2', // inner ear
+  K: '#1b1a24', // face ink
+  x: 'rgba(24, 18, 48, 0.35)', // ground shadow
+};
+const TONES = ['W', 'w', 's', 'S'];
+const LIGHT = (() => { const v = [-0.4, -0.55, 0.73]; const m = Math.hypot(...v); return v.map(c => c / m); })();
+
+// ---------- geometry helpers ----------
+function toLocal(p, x, y) {
+  const dx = x - p.cx, dy = y - p.cy, c = Math.cos(p.rot || 0), s = Math.sin(p.rot || 0);
+  return [(c * dx + s * dy) / p.rx, (-s * dx + c * dy) / p.ry];
+}
+function spike(t) { const f = t - Math.floor(t); const v = 1 - Math.abs(2 * f - 1); return v ** 1.2; }
+
+// Returns { lx, ly, nx, ny } for a (possibly furry) ellipse part
+function sample(p, x, y) {
+  const [lx, ly] = toLocal(p, x, y);
+  const rho = Math.hypot(lx, ly), th = Math.atan2(ly, lx);
+  let limit = 1;
+  if (p.fur) {
+    const amp = p.fur.px / Math.min(p.rx, p.ry) * p.fur.mask(th);
+    limit += amp * spike(th * p.fur.k / (2 * Math.PI) + p.fur.phase) - amp * 0.35;
+  }
+  if (rho >= limit) return null;
+  if (y > GROUND - 0.5) return null; // nothing goes through the floor
+  return { lx, ly, nx: lx / Math.max(limit, 1), ny: ly / Math.max(limit, 1) };
+}
+
+function earAt(base, rot, rx, ry) {
+  const cx = base[0] + Math.sin(rot) * ry * 0.72, cy = base[1] - Math.cos(rot) * ry * 0.72;
+  return { cx, cy, rx, ry, rot };
+}
+
+// ---------- poses ----------
+// dy: body offset (negative = up)   sx/sy: squash & stretch   ear: extra ear sweep-back
+// tilt: whole-body rotation (positive = nose down, rear up)   paw/hind: foot offsets   hindRot: foot angle
+const BASE_POSE = { dx: 0, dy: 0, sx: 1, sy: 1, ear: 0, earTwitch: 0, tilt: 0, paw: [0, 0], hind: [0, 0],
+                    hindRot: 0, hindStretch: 1, pawStretch: 1, pawRot: 0, headDx: 0, headDy: 0, blink: false };
+
+const ANIMS = {
+  hop: [
+    // low, long bunny hop: gather, push off, stretch out, front paws land, back legs swing under, settle
+    { name: 'gather',  ms: 100, dy: 0.8,  sx: 1.05, sy: 0.9,  ear: 0.15, headDy: 0.8 },
+    { name: 'push',    ms: 80,  dx: 0.8, dy: -1.6, sx: 1.12, sy: 0.93, ear: 0.3,  tilt: 0.1, headDx: -2, headDy: 0.6,
+      paw: [-3, -2.2], pawRot: -0.2, hind: [2.6, 0.6], hindRot: 0.4, hindStretch: 1.45 },
+    { name: 'stretch', ms: 110, dx: 0.3, dy: -2.4, sx: 1.17, sy: 0.86, ear: 0.45, headDx: -2.6, headDy: 1.6,
+      paw: [-4.4, -1.2], pawStretch: 1.4, pawRot: -0.35, hind: [3.4, -1.6], hindRot: 0.35, hindStretch: 1.38 },
+    { name: 'reach',   ms: 90,  dx: 0.6, dy: -0.6, sx: 1.17, sy: 0.89, ear: 0.35, tilt: -0.08, headDx: -2.4, headDy: 1.4,
+      paw: [-4, 0], pawStretch: 1.25, hind: [3, -2.6], hindRot: 0.2, hindStretch: 1.25 },
+    { name: 'tuck',    ms: 90,  dy: 0.4,  sx: 0.97, sy: 0.94, ear: 0.2,  tilt: -0.05, headDx: -1.4, headDy: 0.8,
+      paw: [-2, 0], hind: [-2.6, 0], hindStretch: 1.1 },
+    { name: 'settle',  ms: 120, dy: 0.1,  sx: 1.02, sy: 0.97, ear: 0.1 },
+  ],
+  idle: [
+    { name: 'rest',     ms: 220 },
+    { name: 'inhale',   ms: 180, sy: 1.015, sx: 0.995 },
+    { name: 'full',     ms: 260, sy: 1.03, sx: 0.99, headDy: -0.1 },
+    { name: 'exhale',   ms: 180, sy: 1.015, sx: 0.995 },
+    { name: 'blink',    ms: 140, blink: true, earTwitch: 0.35 },
+    { name: 'settle',   ms: 220, earTwitch: 0.12 },
+  ],
+  // quick crouch-and-nibble used by baby gubbies when they reach a snack
+  collect: [
+    { name: 'lean',    ms: 70, dy: 0.5, sx: 1.03, sy: 0.94, ear: 0.15, tilt: 0.1,   headDx: -1.2, headDy: 1.6 },
+    { name: 'dip',     ms: 90, dy: 1.2, sx: 1.08, sy: 0.86, ear: 0.3,  tilt: 0.22,  headDx: -2.2, headDy: 3.4, paw: [-0.5, 0] },
+    { name: 'nibble',  ms: 80, dy: 1.2, sx: 1.08, sy: 0.86, ear: 0.26, tilt: 0.2,   headDx: -2.2, headDy: 2.9, paw: [-0.5, 0], blink: true },
+    { name: 'nibble2', ms: 80, dy: 1.2, sx: 1.08, sy: 0.86, ear: 0.32, tilt: 0.22,  headDx: -2.2, headDy: 3.4, paw: [-0.5, 0], blink: true },
+    { name: 'rise',    ms: 90, dy: 0.4, sx: 1.02, sy: 0.95, ear: 0.12, tilt: 0.06,  headDx: -0.8, headDy: 0.9 },
+  ],
+};
+
+function rotateAbout(p, px, py, a) {
+  const dx = p.cx - px, dy = p.cy - py, c = Math.cos(a), s = Math.sin(a);
+  return { ...p, cx: px + c * dx - s * dy, cy: py + s * dx + c * dy, rot: (p.rot || 0) + a };
+}
+
+function buildParts(pose) {
+  const cxs = 16;
+  const T = (cx, cy, rx, ry, k = 1) => ({  // squash & stretch around the ground point
+    cx: cxs + (cx - cxs) * (1 + (pose.sx - 1) * k),
+    cy: GROUND - (GROUND - cy) * (1 + (pose.sy - 1) * k) + pose.dy,
+    rx: rx * (1 + (pose.sx - 1) * k), ry: ry * (1 + (pose.sy - 1) * k),
+  });
+
+  // the head follows the squash (position only) but never changes shape
+  const head = { ...T(13 + pose.headDx, 14.6 + pose.headDy, 8, 6, 0.5), rx: 8, ry: 6,
+    fur: { px: 0.9, k: 16, phase: 0.1, mask: th => (Math.sin(th) > -0.15 ? Math.abs(Math.cos(th)) ** 1.5 : 0) } };
+  const topY = head.cy - head.ry + 1.2;
+  const feetLift = Math.max(pose.dy, 0) * 0.4; // feet stay planted when squashing down
+
+  let parts = {
+    backEar:  earAt([head.cx + 3.6, topY], 0.42 + pose.ear + pose.earTwitch, 2.3, 4.7),
+    frontEar: earAt([head.cx - 1.8, topY - 0.2], 0.16 + pose.ear, 2.5, 4.9),
+    tail: { ...T(24.6, 25.2, 3.4, 3.4), fur: { px: 0.8, k: 11, phase: 0.3, mask: () => 1 } },
+    body: { ...T(16, 24.2, 8, 6.3),
+      fur: { px: 0.9, k: 13, phase: 0.6, mask: th => Math.max(0, Math.cos(th) * 0.7 - Math.sin(th) * 0.7) } },
+    hindFoot: { cx: 21 + pose.hind[0], cy: 28.6 + pose.hind[1] + feetLift * 0.6,
+                rx: 3.6 * pose.hindStretch, ry: 1.9, rot: pose.hindRot },
+    ruff: { ...T(12.8, 20.6, 6.4, 3.4),  // chest fluff belongs to the body, not the head
+      fur: { px: 2.0, k: 12, phase: 0.5, mask: th => Math.max(0, Math.sin(th)) ** 0.7 } },
+    pawFar:  { cx: 14.6 + pose.paw[0], cy: 28.9 + pose.paw[1] + feetLift, rx: 2.2 * pose.pawStretch, ry: 1.6, rot: pose.pawRot },
+    pawNear: { cx: 10.9 + pose.paw[0], cy: 29 + pose.paw[1] + feetLift, rx: 2.4 * pose.pawStretch, ry: 1.7, rot: pose.pawRot },
+    head,
+  };
+
+  // slide the whole bunny sideways (keeps long poses inside the frame)
+  if (pose.dx) for (const k of Object.keys(parts)) parts[k] = { ...parts[k], cx: parts[k].cx + pose.dx };
+
+  // tilt everything except planted feet around the body's centre
+  if (pose.tilt) {
+    const px = parts.body.cx, py = parts.body.cy;
+    for (const k of Object.keys(parts)) {
+      if (k === 'hindFoot' && pose.dy > -3) continue; // push-off foot stays on the ground
+      parts[k] = rotateAbout(parts[k], px, py, -pose.tilt);
+    }
+  }
+  return parts;
+}
+
+// draw order (back to front) and which earlier parts get an inner line drawn against them
+const ORDER = ['backEar', 'frontEar', 'tail', 'hindFoot', 'body', 'ruff', 'pawFar', 'pawNear', 'head'];
+const LINE_OVER = {
+  frontEar: ['backEar'],
+  body: ['tail', 'hindFoot'],
+  hindFoot: ['tail'],
+  pawNear: ['pawFar'],
+  head: ['frontEar', 'backEar', 'body', 'ruff'],
+};
+const SOFT_BOTTOM = { head: 0.15 }; // head underside blends into the ruff instead of shading dark
+const LIGHT_BIAS = { head: 0.22, ruff: 0.18, body: 0.08 };
+const SHADOW_FROM = { ruff: ['head'], body: ['ruff', 'head'], hindFoot: ['body'], pawFar: ['ruff', 'body', 'pawNear'], pawNear: ['ruff', 'body'] };
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+function drawFrame(pose) {
+  pose = { ...BASE_POSE, ...pose };
+  const parts = buildParts(pose);
+  const col = Array(FW * FH).fill(null), who = Array(FW * FH).fill(null);
+  const at = (x, y) => (x < 0 || y < 0 || x >= FW || y >= FH) ? null : who[y * FW + x];
+
+  for (const name of ORDER) {
+    const p = parts[name];
+    for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+      const hit = sample(p, (x + 0.5) / SC, (y + 0.5) / SC);
+      if (!hit) continue;
+      if (SOFT_BOTTOM[name]) hit.ny = Math.min(hit.ny, SOFT_BOTTOM[name]);
+      const nz = Math.sqrt(Math.max(0, 1 - hit.nx ** 2 - hit.ny ** 2));
+      const I = hit.nx * LIGHT[0] + hit.ny * LIGHT[1] + nz * LIGHT[2] + (LIGHT_BIAS[name] || 0);
+      let c = TONES[I > 0.78 ? 0 : I > 0.32 ? 1 : I > 0.02 ? 2 : 3];
+      if (name.endsWith('Ear')) {  // inner ear
+        const front = name === 'frontEar';
+        const ix = hit.lx + (front ? 0.12 : -0.05), iy = hit.ly + 0.05;
+        if ((ix / (front ? 0.42 : 0.32)) ** 2 + (iy / 0.78) ** 2 < 1) c = (ix < -0.18 || iy > 0.45) ? 'I' : 'i';
+      }
+      col[y * FW + x] = c; who[y * FW + x] = name;
+    }
+  }
+
+  // contact shadows: darken pixels tucked under the part above
+  const out = col.slice();
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const n = who[y * FW + x], src = SHADOW_FROM[n];
+    if (!src) continue;
+    const t = TONES.indexOf(col[y * FW + x]);
+    if (t < 0) continue;
+    const under = d => src.includes(at(x, y - d));
+    if ([...Array(SC)].some((_, d) => under(d + 1))) out[y * FW + x] = TONES[Math.min(3, Math.max(t + 1, 2))];
+    // the ruff only gets the thin near band, so the chest fluff stays bright
+    else if (n !== 'ruff' && [...Array(SC)].some((_, d) => under(d + 1 + SC))) out[y * FW + x] = TONES[Math.min(3, t + 1)];
+  }
+
+  // inner lines where a part overlaps a part behind it
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const behind = LINE_OVER[who[y * FW + x]];
+    if (behind && N4.some(([dx, dy]) => behind.includes(at(x + dx, y + dy)))) out[y * FW + x] = 'o';
+  }
+
+  // silhouette outline
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    if (who[y * FW + x]) continue;
+    if (!N4.some(([dx, dy]) => at(x + dx, y + dy))) continue;
+    // lit side (shape is below/right of this pixel) gets the softer outline colour
+    const lit = (at(x + 1, y) || at(x, y + 1)) && !at(x - 1, y) && !at(x, y - 1) && y < GROUND * SC - 4 * SC;
+    out[y * FW + x] = lit ? 'P' : 'O';
+  }
+
+  // ground shadow, shrinking as he rises
+  const lift = Math.max(0, -pose.dy);
+  const shadow = { cx: 16.5, cy: GROUND, rx: 9.5 * (1 - lift * 0.07), ry: 1.15 * (1 - lift * 0.05) };
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    if (out[y * FW + x]) continue;
+    const [lx, ly] = toLocal(shadow, (x + 0.5) / SC, (y + 0.5) / SC);
+    if (lx * lx + ly * ly < 1) out[y * FW + x] = 'x';
+  }
+
+  // face: Gubby's eyes and smirk, following the head (and its tilt)
+  const h = parts.head;
+  const put = (x, y, c) => { if (x >= 0 && y >= 0 && x < FW && y < FH) out[y * FW + x] = c; };
+  const a = h.rot || 0, fx = -4.8, fy = -2.6;
+  const ex = Math.round((h.cx + fx * Math.cos(a) - fy * Math.sin(a)) * SC);
+  const ey = Math.round((h.cy + fx * Math.sin(a) + fy * Math.cos(a)) * SC);
+  const stamp = (ox, oy, rows) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') put(ox + i, oy + j, ch); }));
+  if (pose.blink) {
+    stamp(ex, ey + 3, ['KKK']);
+    stamp(ex + 12, ey + 3, ['KKK']);
+  } else {
+    // small ovals, tops tilted slightly outward (smug, not sad)
+    stamp(ex, ey, ['KK.', 'KKK', 'KKK', 'KKK', '.K.']);
+    stamp(ex + 12, ey, ['.KK', 'KKK', 'KKK', 'KKK', '.K.']);
+  }
+  // wobbly brush line, low on the left, little hump, hook up on the right
+  stamp(ex - 1, ey + 8, [
+    '..............KK',
+    '.........KK..K..',
+    '...KKKKKK..KK...',
+    'KKK.............',
+  ]);
+
+  return out;
+}
+
+function paint(ctx, pixels, ox, oy, flip) {
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const c = pixels[y * FW + x];
+    if (!c) continue;
+    ctx.fillStyle = PAL[c];
+    ctx.fillRect(ox + (flip ? FW - 1 - x : x), oy + y, 1, 1);
+  }
+}
+
+// ---------- build sheet ----------
+// One row per animation: frames facing left, then the same frames mirrored to face right.
+const ROWS = ['hop', 'idle', 'collect'];
+const COLS = Math.max(...ROWS.map(r => ANIMS[r].length)) * 2;
+const sheet = document.getElementById('sheet');
+sheet.width = FW * COLS; sheet.height = FH * ROWS.length;
+const sctx = sheet.getContext('2d');
+const meta = { image: 'gubby-sheet.png', frameWidth: FW, frameHeight: FH, animations: {} };
+ROWS.forEach((row, r) => {
+  const frames = ANIMS[row], n = frames.length;
+  frames.forEach((pose, i) => {
+    const px = drawFrame(pose);
+    paint(sctx, px, i * FW, r * FH, false);
+    paint(sctx, px, (n + i) * FW, r * FH, true);
+  });
+  const durations = frames.map(f => f.ms);
+  meta.animations[`${row}_left`]  = { row: r, frames: frames.map((_, i) => i),     durations };
+  meta.animations[`${row}_right`] = { row: r, frames: frames.map((_, i) => n + i), durations };
+});
+document.getElementById('info').textContent =
+  `${FW}×${FH} frames, sheet ${sheet.width}×${sheet.height}. ` +
+  ROWS.map((r, i) => `Row ${i + 1}: ${r} (${ANIMS[r].length} frames left, then mirrored right)`).join('. ') + '.';
+
+// full sheet with frame grid
+const big = document.getElementById('big');
+big.width = sheet.width; big.height = sheet.height;
+const bctx = big.getContext('2d');
+bctx.drawImage(sheet, 0, 0);
+bctx.strokeStyle = 'rgba(126,224,161,.3)';
+for (let i = 1; i < COLS; i++) { bctx.beginPath(); bctx.moveTo(i * FW + .5, 0); bctx.lineTo(i * FW + .5, big.height); bctx.stroke(); }
+for (let r = 1; r < ROWS.length; r++) { bctx.beginPath(); bctx.moveTo(0, r * FH + .5); bctx.lineTo(big.width, r * FH + .5); bctx.stroke(); }
+
+// close-up of the left-facing halves of both rows
+const detail = document.getElementById('detail'), D = 2, half = COLS / 2;
+detail.width = FW * half * D; detail.height = FH * ROWS.length * D;
+const dctx = detail.getContext('2d'); dctx.imageSmoothingEnabled = false;
+dctx.drawImage(sheet, 0, 0, FW * half, sheet.height, 0, 0, detail.width, detail.height);
+
+// animated previews (using each frame's own duration)
+function animate(id, anim) {
+  const c = document.getElementById(id), x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  let f = 0;
+  const step = () => {
+    x.clearRect(0, 0, c.width, c.height);
+    x.drawImage(sheet, anim.frames[f] * FW, anim.row * FH, FW, FH, 0, 0, c.width, c.height);
+    setTimeout(step, anim.durations[f]);
+    f = (f + 1) % anim.frames.length;
+  };
+  step();
+}
+animate('hopL', meta.animations.hop_left);
+animate('hopR', meta.animations.hop_right);
+animate('idleL', meta.animations.idle_left);
+animate('idleR', meta.animations.idle_right);
+animate('collectL', meta.animations.collect_left);
+animate('collectR', meta.animations.collect_right);
+
+document.getElementById('dl').onclick = () => {
+  const a = document.createElement('a'); a.download = 'gubby-sheet.png'; a.href = sheet.toDataURL('image/png'); a.click();
+};
+document.getElementById('save').onclick = () => sheet.toBlob(async blob => {
+  const r1 = await fetch('/save/gubby-sheet.png', { method: 'POST', body: blob });
+  const r2 = await fetch('/save/gubby-sheet.json', { method: 'POST', body: JSON.stringify(meta, null, 2) });
+  document.getElementById('saved').textContent = r1.ok && r2.ok
+    ? 'Saved sprites/gubby-sheet.png + .json' : `Save failed (${r1.status}/${r2.status})`;
+}, 'image/png');
+</script>
+</body>
+</html>

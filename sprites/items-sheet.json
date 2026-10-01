@@ -1,0 +1,259 @@
+{
+  "image": "items-sheet.png",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "icons": {
+    "carrot": {
+      "col": 0,
+      "row": 0
+    },
+    "carrotBundle": {
+      "col": 1,
+      "row": 0
+    },
+    "clover": {
+      "col": 2,
+      "row": 0
+    },
+    "strawberry": {
+      "col": 3,
+      "row": 0
+    },
+    "lettuce": {
+      "col": 4,
+      "row": 0
+    },
+    "pizza": {
+      "col": 5,
+      "row": 0
+    },
+    "can": {
+      "col": 6,
+      "row": 0
+    },
+    "briefcase": {
+      "col": 7,
+      "row": 0
+    },
+    "juice": {
+      "col": 0,
+      "row": 1
+    },
+    "coin": {
+      "col": 1,
+      "row": 1
+    },
+    "moneyBag": {
+      "col": 2,
+      "row": 1
+    },
+    "cash": {
+      "col": 3,
+      "row": 1
+    },
+    "mafioso": {
+      "col": 4,
+      "row": 1
+    },
+    "bush": {
+      "col": 5,
+      "row": 1
+    },
+    "cart": {
+      "col": 6,
+      "row": 1
+    },
+    "pizzeria": {
+      "col": 7,
+      "row": 1
+    },
+    "warehouse": {
+      "col": 0,
+      "row": 2
+    },
+    "front": {
+      "col": 1,
+      "row": 2
+    },
+    "truck": {
+      "col": 2,
+      "row": 2
+    },
+    "slots": {
+      "col": 3,
+      "row": 2
+    },
+    "tophat": {
+      "col": 4,
+      "row": 2
+    },
+    "car": {
+      "col": 5,
+      "row": 2
+    },
+    "cap": {
+      "col": 6,
+      "row": 2
+    },
+    "pistol": {
+      "col": 7,
+      "row": 2
+    },
+    "whiskey": {
+      "col": 0,
+      "row": 3
+    },
+    "scroll": {
+      "col": 1,
+      "row": 3
+    },
+    "newspaper": {
+      "col": 2,
+      "row": 3
+    },
+    "mountain": {
+      "col": 3,
+      "row": 3
+    },
+    "lock": {
+      "col": 4,
+      "row": 3
+    },
+    "gubby": {
+      "col": 5,
+      "row": 3
+    },
+    "hopBunny": {
+      "col": 6,
+      "row": 3
+    },
+    "ear": {
+      "col": 7,
+      "row": 3
+    },
+    "sparkles": {
+      "col": 0,
+      "row": 4
+    },
+    "star": {
+      "col": 1,
+      "row": 4
+    },
+    "crown": {
+      "col": 2,
+      "row": 4
+    },
+    "mirror": {
+      "col": 3,
+      "row": 4
+    },
+    "ice": {
+      "col": 4,
+      "row": 4
+    },
+    "sunflower": {
+      "col": 5,
+      "row": 4
+    },
+    "tulip": {
+      "col": 6,
+      "row": 4
+    },
+    "dash": {
+      "col": 7,
+      "row": 4
+    },
+    "bottle": {
+      "col": 0,
+      "row": 5
+    },
+    "house": {
+      "col": 1,
+      "row": 5
+    },
+    "tag": {
+      "col": 2,
+      "row": 5
+    },
+    "yum": {
+      "col": 3,
+      "row": 5
+    },
+    "hero": {
+      "col": 4,
+      "row": 5
+    },
+    "nose": {
+      "col": 5,
+      "row": 5
+    },
+    "magnifier": {
+      "col": 6,
+      "row": 5
+    },
+    "charm": {
+      "col": 7,
+      "row": 5
+    },
+    "fairy": {
+      "col": 0,
+      "row": 6
+    },
+    "dizzy": {
+      "col": 1,
+      "row": 6
+    },
+    "magnet": {
+      "col": 2,
+      "row": 6
+    },
+    "rainbow": {
+      "col": 3,
+      "row": 6
+    },
+    "robot": {
+      "col": 4,
+      "row": 6
+    },
+    "mouth": {
+      "col": 5,
+      "row": 6
+    },
+    "salt": {
+      "col": 6,
+      "row": 6
+    },
+    "handshake": {
+      "col": 7,
+      "row": 6
+    },
+    "zipped": {
+      "col": 0,
+      "row": 7
+    },
+    "medal": {
+      "col": 1,
+      "row": 7
+    },
+    "rose": {
+      "col": 2,
+      "row": 7
+    },
+    "key": {
+      "col": 3,
+      "row": 7
+    },
+    "shush": {
+      "col": 4,
+      "row": 7
+    },
+    "paws": {
+      "col": 5,
+      "row": 7
+    },
+    "rain": {
+      "col": 6,
+      "row": 7
+    }
+  }
+}

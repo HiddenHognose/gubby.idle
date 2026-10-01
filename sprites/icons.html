@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gubby Icon Maker</title>
+<style>
+  body { margin: 0; padding: 20px; background: #1d1a2b; color: #f1edff; font-family: "Segoe UI", system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; color: #7ee0a1; font-size: 1.4rem; }
+  p { color: #a59fc4; margin: 0 0 16px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 20px; }
+  .card { background: #2a2640; border-radius: 10px; padding: 12px; }
+  .card h2 { margin: 0 0 8px; font-size: .9rem; color: #a59fc4; font-weight: 600; }
+  canvas { image-rendering: pixelated; display: block; }
+  .checker { background: repeating-conic-gradient(#3a3556 0 25%, #332f4c 0 50%) 0 0 / 16px 16px; }
+  .field { background: #6fbf5a; }
+  .path { background: #b8946a; }
+  .flex { display: flex; gap: 12px; align-items: flex-end; }
+  button { background: #353052; color: #f1edff; border: 1px solid #4a4470; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+</style>
+</head>
+<body>
+<h1>Gubby Icon Maker</h1>
+<p>Pixel-art replacements (64×64 unless noted) for the game's emoji. Each icon is built from shapes, then outlined and shaded.</p>
+<div id="icons"></div>
+
+<script>
+// S = pixel size of the icon being drawn. Shapes are authored in layout units: an icon can say how many
+// units span its frame (`layout`, default 64) and shift its drawing (`offset`), so K = S / layout.
+let S = 64, K = 1, OX = 0, OY = 0;   // OX/OY shift the layout (in layout units) inside the frame
+
+// Shared palette (16-bit style ramps: base / shade / light)
+const PAL = {
+  outline: '#0b0a10', inner: '#07060b',
+  fur: '#23222c', furS: '#17161e', furL: '#3e3d4b',         // black bunny fur
+  furD: '#121117', furDS: '#0a090d', furDL: '#211f28',      // legs behind the body, a clear step darker
+  earIn: '#4b4957', earInS: '#3a3845', earInL: '#5c5a69',
+  hat: '#1f1e27', hatS: '#15141b', hatL: '#3d3c4a', stripe: '#5f5e6e',
+  coat: '#363a50', coatS: '#272a3b', coatL: '#5a5f7b',     // slate suit, cooler and lighter than the fur
+  sleeve: '#3d4158', sleeveS: '#2c2f42', sleeveL: '#646a88',
+  white: '#f4f2ee', whiteS: '#cbc6d1', whiteL: '#ffffff',
+  skin: '#f6c21c', skinS: '#d49412', skinL: '#ffe066', skinD: '#9c650c',
+  gold: '#f0c040', goldS: '#b8862a', goldL: '#fff0a0',
+  tie: '#24232d', tieS: '#191820', tieL: '#24232d',
+  ink: '#1a1208',
+  // the rest of the gang
+  shirt: '#cfd2bd', shirtS: '#a2a993', shirtL: '#e8eadb',   // sage short-sleeved shirt
+  shirtD: '#7b8371',                                       // sleeve seams
+  wfur: '#e8e7ee', wfurS: '#c1bece', wfurL: '#ffffff',      // white bunny fur
+  wfurD: '#bbb8c8', wfurDS: '#a09cb0', wfurDL: '#d5d3df',   // ...legs behind the body
+  wear: '#f2b8bd', wearS: '#dc9aa2', wearL: '#f8d0d3',       // pink inner ears
+  yfur: '#eeae1e', yfurS: '#c88612', yfurL: '#ffd65a',      // yellow bunny fur
+  yfurD: '#c48812', yfurDS: '#9f6b0c', yfurDL: '#daa22e',
+  year: '#d88e2a', yearS: '#b7731c', yearL: '#e9a84a',
+  vest: '#2e3252', vestS: '#20233b', vestL: '#4c5277',      // navy vest, bluer and lighter than the fur
+  navy: '#2a2c4a', navyS: '#1b1c33', navyL: '#444870',      // caps, ribbon, earmuff
+  tband: '#474b74', tbandS: '#383b5e', tbandL: '#5a5f8c',   // top hat band and crown top
+  grey: '#cbcec2', greyS: '#9fa496', greyL: '#e6e8de',      // light grey hat
+  hair: '#1d1b2c', hairS: '#13121e', hairL: '#33304a',      // dark fringe
+  scarf: '#2b2938', scarfS: '#1e1c28', scarfL: '#46435a',
+  blush: '#f07a5c', glint: '#5c6080',
+  // items (snacks and money)
+  carrot: '#f0862a', carrotS: '#c4601a', carrotL: '#ffb454',
+  leaf: '#5cc24a', leafS: '#3a8f33', leafL: '#8fe070',
+  ribbon: '#d9343c', ribbonS: '#a02030', ribbonL: '#ff6a6a',
+  clover: '#4fb848', cloverS: '#2f8a35', cloverL: '#8ee070',
+  berry: '#e8384a', berryS: '#b0203a', berryL: '#ff7a84', seed: '#ffe066',
+  lettuce: '#8ed05a', lettuceS: '#5ea43a', lettuceL: '#c4ee8c', lettuceLS: '#a6dc6e', lettuceLL: '#e2f8c0',
+  cheese: '#ffd255', cheeseS: '#e8a830', cheeseL: '#fff2a8',
+  crust: '#d8913c', crustS: '#b06e25', crustL: '#f0b866',
+  pep: '#c8303a', pepS: '#962030', pepL: '#e85a5a',
+  tin: '#b8bcc8', tinS: '#868b9a', tinL: '#e2e5ee',
+  label: '#d9443a', labelS: '#a8302a', labelL: '#f06a5a',
+  leather: '#8a5a33', leatherS: '#6b4426', leatherL: '#a8744a',
+  straw: '#f2a2b8',
+  juice: '#f39a3a', juiceS: '#c8702a', juiceL: '#ffc070',
+  sack: '#d9b77a', sackS: '#b08e52', sackL: '#f0d49a',
+  cash: '#7cc47a', cashS: '#4f9a55', cashL: '#a8e2a0', cashD: '#3e7a46',
+};
+
+// ---------- shape primitives (inside tests in pixel space) ----------
+const ell = (cx, cy, rx, ry, rot = 0) => (x, y) => {
+  const dx = x - cx, dy = y - cy, c = Math.cos(rot), s = Math.sin(rot);
+  const lx = (c * dx + s * dy) / rx, ly = (-s * dx + c * dy) / ry;
+  return lx * lx + ly * ly < 1;
+};
+// ellipse with a wavy edge (fur, hair, foliage)
+const blob = (cx, cy, rx, ry, amp, k, phase = 0) => (x, y) => {
+  const lx = (x - cx) / rx, ly = (y - cy) / ry, th = Math.atan2(ly, lx);
+  return Math.hypot(lx, ly) < 1 + amp * Math.sin(th * k + phase) + amp * 0.5 * Math.sin(th * k * 2.3 + phase * 1.7);
+};
+const poly = (pts) => (x, y) => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const rrect = (x0, y0, x1, y1, r) => (x, y) => {
+  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const cx = Math.min(Math.max(x, x0 + r), x1 - r), cy = Math.min(Math.max(y, y0 + r), y1 - r);
+  return Math.hypot(x - cx, y - cy) <= r;
+};
+
+// ---------- renderer ----------
+// part: { id, group?, test, ramp: 'key' (uses key, keyS, keyL), noLine?: [groups], lineColor?, shade?: {hi, lo} }
+function render(parts, extras) {
+  const col = Array(S * S).fill(null), who = Array(S * S).fill(null);
+  const at = (x, y) => (x < 0 || y < 0 || x >= S || y >= S) ? null : who[y * S + x];
+  const grp = p => p.group || p.id;
+  const byId = Object.fromEntries(parts.map(p => [p.id, p]));
+
+  for (const p of parts) {
+    const px = [];
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (p.test((x + 0.5) / K - OX, (y + 0.5) / K - OY)) px.push([x, y]);
+    if (!px.length) continue;
+    // light from the top-left, measured across the part's own bounding box
+    const xs = px.map(q => q[0]), ys = px.map(q => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const hi = p.shade?.hi ?? -0.7, lo = p.shade?.lo ?? 0.45;
+    for (const [x, y] of px) {
+      const u = (x - (x0 + x1) / 2) / Math.max(1, (x1 - x0) / 2), v = (y - (y0 + y1) / 2) / Math.max(1, (y1 - y0) / 2);
+      const t = 0.55 * u + 0.85 * v;
+      col[y * S + x] = t > lo ? p.ramp + 'S' : t < hi ? p.ramp + 'L' : p.ramp;
+      who[y * S + x] = p.id;
+    }
+  }
+
+  const out = col.slice();
+  const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const order = Object.fromEntries(parts.map((p, i) => [p.id, i]));
+
+  // inner lines: a part gets a line where it borders a different group drawn behind it
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const id = who[y * S + x]; if (!id) continue;
+    const p = byId[id];
+    for (const [dx, dy] of N4) {
+      const n = at(x + dx, y + dy);
+      if (!n || grp(byId[n]) === grp(p) || order[n] > order[id]) continue;
+      if (p.noLine?.includes(grp(byId[n]))) continue;
+      out[y * S + x] = p.lineColor || 'inner'; break;
+    }
+  }
+
+  // silhouette outline
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (who[y * S + x]) continue;
+    if (N4.some(([dx, dy]) => at(x + dx, y + dy))) out[y * S + x] = 'outline';
+  }
+
+  extras?.({ out, who, at, put: (x, y, c) => { if (x >= 0 && y >= 0 && x < S && y < S) out[y * S + x] = c; } });
+  return out;
+}
+
+const stamp = (put, ox, oy, rows, map) =>
+  rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') put(ox + i, oy + j, map[ch]); }));
+
+function line(put, x0, y0, x1, y1, c) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let i = 0; i <= n; i++) put(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), c);
+}
+
+// =====================================================================
+// ICONS
+// =====================================================================
+const ICONS = {};
+
+// ---------------------------------------------------------------------
+// Bunny-taur gang (80×80, 3/4 view). A gentleman's upper body on a black bunny body.
+// Shared: tall black bunny ears (twitching around where they attach), a black curly mane around a
+// yellow face, and the all-fur bunny half: a tall round body, front legs level with the right one in
+// front (melded into the chest), back legs level and further away (smaller, higher), legs behind
+// the body darker, and a puffy tail. Each character adds its own outfit, hat and face.
+// Idle loop (8 frames): breathing (upper body sinks 1px), tail wag, right-ear flick.
+// The layout is 72 units tall and shifted down 7 so the tall ears fit; pixel details go through PX/PY.
+// ---------------------------------------------------------------------
+const fluffy = (cx, cy, rx, ry, k = 12, amp = 0.22, p = 0) => blob(cx, cy, rx, ry, amp, k, p);
+// distance from (x, y) to segment a-b
+const segDist = (x, y, [ax, ay], [bx, by]) => {
+  const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(x - ax - t * vx, y - ay - t * vy);
+};
+// a ribbon/strap following a polyline, `r` units thick on each side
+const strip = (pts, r) => (x, y) => pts.some((p, i) => i > 0 && segDist(x, y, pts[i - 1], p) < r);
+// an ear defined by where it attaches: at rest its centre sits at `rest` (angle `restRot`); turning it to
+// `rot` swings that centre around the base point, so a twitch pivots where the ear meets the head
+const earAt = ([bx, by], [rx0, ry0], restRot, rot, rx, ry) => {
+  const a = rot - restRot, vx = rx0 - bx, vy = ry0 - by, c = Math.cos(a), s = Math.sin(a);
+  return ell(bx + c * vx - s * vy, by + s * vx + c * vy, rx, ry, rot);
+};
+
+function bunnyTaur(look) {
+  return { size: 80, layout: 72, offset: [0, 7], frames: 8, ms: 110, draw: (f) => {
+    const N = 8, ph = (f / N) * Math.PI * 2;
+    const PX = v => Math.round((v + OX) * K), PY = v => Math.round((v + OY) * K);   // layout -> pixels
+    // Walk cycle (in place; the game slides the sprite along). Legs step in a diagonal trot, the whole body
+    // bobs down a pixel twice per cycle as the legs pass under it, and the arms swing opposite each other.
+    const bob = [0, 1, 1, 0, 0, 1, 1, 0][f];                // body bob, in whole pixels
+    const dy = bob / K;                                     // ...and in layout units
+    const U = test => (x, y) => test(x, y - dy);            // parts that ride along with the bob
+    const flick = f === 5 ? 0.3 : f === 6 ? 0.12 : 0;        // right ear flick
+    const wag = Math.sin(ph * 2) * 0.9;                     // quick little tail wag
+    // arm swing: rotate an arm part about its shoulder (near arm forward when the far one is back)
+    const swingAbout = ([px, py], a) => test => U((x, y) => {
+      const c = Math.cos(-a), s = Math.sin(-a), vx = x - px, vy = y - py;
+      return test(px + c * vx - s * vy, py + s * vx + c * vy);
+    });
+    const swingNear = swingAbout([33.6, 30], -0.16 * Math.sin(ph)), swingFar = swingAbout([19.2, 30], 0.16 * Math.sin(ph));
+    const ctx = { f, ph, dy, bob, U, PX, PY, swingNear, swingFar };
+    // fur colours: black by default; a look can pick another ramp (its darker leg ramp is the same name + "D").
+    // Light fur needs darker rim lines and tufts to show.
+    const F = look.fur || 'fur', FD = F + 'D', EI = look.earIn || 'earIn';
+    const RIM = look.furRim || 'furL', TUFT = look.furTuft || 'furL';
+
+    // Depth: the bunny body recedes to the right, so things further back are drawn smaller.
+    // d(x) is the scale at a given x (1 at the front legs, ~0.7 at the far hind leg).
+    const d = x => 1 - Math.max(0, x - 22) * 0.011;
+    // A furry leg hanging from `top` (at x = `cx`, riding the bob) down to a paw at ground level `foot`,
+    // `w` wide at full scale (times `s`). Each leg steps with its own `phase`: the paw swings forward (to the
+    // left) with a little lift, then plants and slides back under the body.
+    const legs = [];
+    // `meld` legs join the body group (no seam, no highlight cap) so they grow out of the fur above them
+    const leg = (id, x0, w, top, ground, ramp, s = d(x0), meld = false, phase = 0) => {
+      const hw = w * s / 2;
+      const pw = hw + 1.3 * s;   // paws are rounded buns, wider than the leg
+      const q = ph + phase, cx = x0 - 3 * s * Math.sin(q), foot = ground - 1.9 * s * Math.max(0, Math.cos(q));
+      legs.push({ id, cx, hw, pw, s, foot });
+      return [
+        { id, group: meld ? 'body' : id, ramp, shade: meld ? { hi: -2, lo: 0.5 } : undefined,
+          test: strip([[x0, top + dy + hw], [cx, foot - hw * 0.6]], hw + 0.3) },
+        // paw: a rounded bun bulging forward, with four toe bumps along the bottom (the notches between them
+        // become the toe gaps); a soft seam where it meets the leg
+        { id: id + 'Paw', group: id + 'Paw', ramp, lineColor: RIM, shade: { hi: -0.45, lo: 0.7 },
+          test: (x, y) => y < foot + 0.8 * s && (ell(cx - 0.6 * s, foot - 1 * s, pw, 2.4 * s)(x, y) ||
+            [-0.6, -0.2, 0.2, 0.6].some(t => Math.hypot(x - (cx - 0.6 * s + t * pw), y - (foot - 0.1 * s)) < 0.3 * pw + 0.25)) },
+      ];
+    };
+
+    // The head (and whatever sits on it) can be lowered onto the shoulders with `headDy`; hats can sink a
+    // little further onto the head with `hatSink`. UH / UT apply those offsets on top of the breathing.
+    const HD = look.headDy || 0, HS = HD + (look.hatSink || 0);
+    const UH = t => U((x, y) => t(x, y - HD)), UT = t => U((x, y) => t(x, y - HS));
+    const headCtx = { ...ctx, U: UH, PY: v => PY(v + HD) }, hatCtx = { ...ctx, U: UT, PY: v => PY(v + HS) };
+
+    // Ears hang from fixed attachment points, so the flick pivots at the base instead of sliding.
+    // Each ear: base point, resting centre (outer and inner), resting angle, and size. The default pair
+    // pokes up through the top of a hat; `earSpec` can replace it (e.g. ears out of the sides of the head).
+    const [sx, sy] = look.earShift || [0, 0];
+    const at0 = (x, y) => [x + sx, y + sy];
+    const spec = look.earSpec || [
+      { side: 'L', base: at0(23.27, 8.62), rest: at0(21.8, 2.6), restIn: at0(21.8, 2.9), rot: -0.24, rx: 2.3, ry: 7.6, ryIn: 5.8 },
+      { side: 'R', base: at0(29.81, 8.29), rest: at0(31.4, 2.3), restIn: at0(31.4, 2.6), rot: 0.26, rx: 2.3, ry: 7.8, ryIn: 6 },
+    ];
+    const UE = look.earsBehindHead ? UH : UT;   // ears in a hat follow the hat; ears on the head follow the head
+    const ears = look.noEars ? [] : spec.flatMap(e => {
+      const rot = e.rot + (e.side === 'R' ? flick * Math.sign(e.rot || 1) : 0);
+      return [
+        { id: 'ear' + e.side, ramp: F, test: UE(earAt(e.base, e.rest, e.rot, rot, e.rx, e.ry)) },
+        { id: 'ear' + e.side + 'In', group: 'ear' + e.side, ramp: EI, test: UE(earAt(e.base, e.restIn, e.rot, rot, 1, e.ryIn)), shade: { hi: -2, lo: 0.6 } },
+      ];
+    });
+
+    // sort the outfit into layers by part id (see ARM_LAYERS)
+    const outfitParts = look.outfit(ctx), layer = p => ARM_LAYERS[p.id] || 'clothes';
+    const outfit = { far: [], clothes: [], near: [], top: [] };
+    for (const p of outfitParts) outfit[layer(p)].push(p);
+
+    const parts = [
+      // bunny half: all fur, receding back and up to the right, getting smaller with distance
+      { id: 'tail', ramp: F, lineColor: RIM, test: U(fluffy(51.6 + wag * 0.7, 29.6, 3.1, 2.8, 8, 0.25, 0.4)) },
+      // back legs: a pair standing level with each other, further away (higher up, smaller) than the front pair
+      ...leg('legFarHind', 51.2, 7, 40, 58.4, F, 0.8, false, 0),
+      // front legs: a pair standing level; the left one is tucked behind the body
+      ...leg('legFrontBehind', 21.5, 7, 46.5, 61.6, FD, 1, false, Math.PI),
+      { id: 'body', ramp: F, test: U((x, y) => fluffy(37.5, 39.6, 9.2, 8.8, 13, 0.07, 0.2)(x, y) || fluffy(30, 42.4, 8.6, 8.8, 11, 0.07, 1.4)(x, y)) },   // tall and round; belly line low
+      { id: 'haunch', ramp: F, lineColor: RIM, test: U(fluffy(45.4, 37.8, 7.2, 9, 10, 0.08, 1)) },
+      ...leg('legNearHind', 44.6, 7, 43.5, 58.4, FD, 0.8, true, Math.PI),
+      { id: 'chest', group: 'body', ramp: F, test: U(fluffy(25, 46.5, 10, 5.5, 11, 0.12, 0.8)) },
+      ...leg('legFrontFront', 30.2, 7, 44, 61.6, F, 1, true, 0),   // the right front leg is in front of the body, growing out of the chest
+
+      // upper body, back to front: the farther arm (bottom layer), anything hanging behind the body (the
+      // leader's long hair), the clothes, then the closer arm over all of them, then neckwear like the stole
+      ...outfit.far,
+      ...(look.behind?.(ctx) || []),
+      ...outfit.clothes,
+      ...outfit.near,
+      ...outfit.top,
+
+      // head: ears grow out from behind the head when there's no hat to hide their base
+      ...(look.earsBehindHead ? ears : []),
+      ...(look.underFace?.(headCtx) || []),
+      // the face: a round yellow head by default; a look can supply its own (the leader's is framed by hair)
+      ...(look.head?.(headCtx) || [{ id: 'face', ramp: 'skin', test: UH(ell(25.8, 20.6, 7.6, 6.8)), shade: { hi: -0.8, lo: 0.7 } }]),
+      ...(look.overFace?.(headCtx) || []),
+      ...(look.earsBehindHead ? [] : ears),
+      ...(look.hat?.(hatCtx) || []),
+    ];
+
+    return render(parts, (r) => {
+      const { out, who, at, put } = r;
+      const is = (x, y, ...ids) => ids.includes(who[y * S + x]) && out[y * S + x] !== 'inner';
+      Object.assign(ctx, r, { is });
+      // the hat shades the top of the face; `eyeShadow` deepens it into a dark band that hides the eyes
+      const shadeBy = look.shadeFaceBy || [];
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        if (!shadeBy.length || !is(x, y, 'face')) continue;
+        const k = [1, 2, 3, 4, 5].find(k => shadeBy.includes(at(x, y - k)));
+        if (look.eyeShadow ? k <= 3 : k <= 2) out[y * S + x] = look.eyeShadow ? 'skinD' : 'skinS';
+        else if (look.eyeShadow && k) out[y * S + x] = 'skinS';
+      }
+      look.decorate?.(ctx);   // pixel patterns (pinstripes, tie stripes, ...)
+      look.face({ ...ctx, PY: headCtx.PY });   // face stamps (in head coordinates)
+      // buttons, chains, straps ... sit on the clothes, so they never draw over the closer arm
+      const onClothes = (x, y, c) => { if (ARM_LAYERS[who[y * S + x]] !== 'near') put(x, y, c); };
+      look.details?.({ ...ctx, put: onClothes, putAny: put });
+      // toe gaps: short lines rising from the bottom of each paw, in a contrasting shade so they show
+      for (const l of legs) for (const t of [-0.4, 0, 0.4]) {
+        const x = PX(l.cx - 0.6 * l.s + t * l.pw);
+        let y = S - 1;
+        while (y > 0 && who[y * S + x] !== l.id + 'Paw') y--;
+        if (y > 0) { put(x, y, RIM); if (who[(y - 1) * S + x] === l.id + 'Paw') put(x, y - 1, RIM); }
+      }
+      // fur tufts on the bunny body
+      for (const [tx, ty] of [[42, 34], [43, 35], [47, 37], [48, 38], [37, 37], [50.5, 40], [22, 48], [23, 49], [33, 43.5]]) {
+        const x = PX(tx), y = PY(ty) + bob, w = who[y * S + x];
+        if (w === 'body' || w === 'haunch' || w === 'chest') put(x, y, TUFT);
+      }
+    });
+  } };
+}
+
+// ---------------------------------------------------------------------
+// Shared upper body, after the user's torso guide: a slim, tapered torso (sloped shoulders, narrower waist)
+// in 3/4 view, turned to the left. The torso and the clothes on it are mirrored across the torso's centre
+// line by MX. Everything rides the walk bob.
+// ---------------------------------------------------------------------
+const MX = x => 51.4 - x;                                   // mirror across the torso centre (x = 25.7)
+const mirror = pts => pts.map(([x, y]) => [MX(x), y]);
+const mirrorBox = ([x0, y0, x1, y1]) => [MX(x1), y0, MX(x0), y1];
+const TORSO = mirror([
+  [17.8, 30.6], [19.6, 29.2], [22.2, 28.6], [29.4, 28.6], [32, 29.2], [33.6, 30.8],
+  [33.4, 36.4], [32.4, 40.6], [33, 44.6], [18.6, 44.6], [19.4, 40.6], [18.4, 36.4],
+]);
+const torso = dy => poly(TORSO.map(([x, y]) => [x, y + dy]));
+// He's turned to the left, so his own left arm is the CLOSER one: it hangs on the viewer's right and is drawn
+// over all the clothing. His right arm is the FARTHER one: it hangs on the viewer's left, mostly hidden
+// behind the body, and is the bottom layer of the upper body (see ARM_LAYERS).
+const ARM_NEAR = {   // closer arm: fuller, hanging in front of the near (right) side of the body
+  sleeveLong:  [[31.6, 29.6], [35.4, 29.8], [36, 37], [36.2, 41.4], [32.8, 41.4], [32.4, 37]],
+  sleeveShort: [[31.6, 29.6], [35.4, 29.8], [35.8, 35], [32.2, 35]],
+  forearm:     [[32.2, 34.8], [35.8, 34.8], [36, 43.2], [32.6, 43.2]],
+  cuff: [34.3, 41.8], hand: [34.3, 44.8, 2.1, 2], fold: [32.2, 35.8, 34.4],
+};
+const ARM_FAR = {    // farther arm: thinner, tucked behind the far (left) edge so only a sliver and the hand peek out
+  sleeveLong:  [[18.2, 30.2], [20.6, 30], [20.2, 37], [20, 41.2], [17.6, 41.2], [17.4, 37]],
+  sleeveShort: [[18.2, 30.2], [20.6, 30], [20.4, 35], [17.6, 35]],
+  forearm:     [[17.6, 34.8], [20.2, 34.8], [20, 43], [17.8, 43]],
+  cuff: [18.8, 41.6], hand: [18.7, 44.4, 1.5, 1.5], fold: [17.6, 20.4, 34.4],
+};
+// which layer each arm part draws in: the farther arm (R) is the bottom layer; the closer arm (L) goes over
+// all the clothing; the leader's stole sits on top of that, under the head
+const ARM_LAYERS = {
+  sleeveR: 'far', cuffR: 'far', handR: 'far', armR: 'far',
+  sleeveL: 'near', cuffL: 'near', handL: 'near', armL: 'near',
+  stole: 'top',
+};
+// a bare forearm and its hand as one continuous piece (no seam at the wrist)
+const bareArm = a => (x, y) => poly(a.forearm)(x, y) || ell(...a.hand)(x, y);
+
+// pixel helpers for faces (face centre is at layout (25.3, 21.4))
+const blush = ({ put, PX, PY, bob }, sides = [-1, 1]) => {
+  for (const s of sides) stamp(put, PX(25.3) + (s < 0 ? -6 : 4), PY(22.2) + bob, ['bbb'], { b: 'blush' });
+};
+
+// ---------------------------------------------------------------------
+// 1. Mafioso (Carrot Farmer row 0): the leader. Pinstriped hat, long curly black hair, eyes lost in the brim.s shadow, white fur stole, slate double-breasted jacket with gold
+//    buttons, striped tie and watch chain, white fluffy cuffs, and a plain smile.
+// ---------------------------------------------------------------------
+ICONS.mafioso = bunnyTaur({
+  shadeFaceBy: ['brim'],
+  eyeShadow: true,   // his eyes are lost in the shadow of the brim
+  // long curly black hair falling behind his shoulders
+  behind: ({ U }) => [
+    { id: 'hair', ramp: 'fur', test: U(fluffy(26.4, 24, 11.6, 11.4, 11, 0.16, 0.2)) },
+  ],
+  // his face, framed by that hair (no beard)
+  head: ({ U }) => [
+    { id: 'face', ramp: 'skin', test: U(ell(25.3, 21.4, 6.1, 4.9)), shade: { hi: -0.8, lo: 0.8 } },
+  ],
+  outfit: ({ U, dy, swingNear, swingFar }) => [
+    // far (right) arm hangs mostly behind the body, since he's turned three-quarters to the left
+    { id: 'sleeveR', ramp: 'sleeve', lineColor: 'sleeveL', test: swingFar(poly(ARM_FAR.sleeveLong)) },
+    { id: 'cuffR', ramp: 'white', test: swingFar(fluffy(ARM_FAR.cuff[0], ARM_FAR.cuff[1], 2.4, 1.8, 8, 0.25, 1.9)) },
+    { id: 'handR', ramp: 'skin', test: swingFar(ell(...ARM_FAR.hand)) },
+    { id: 'torso', ramp: 'coat', lineColor: 'coatL', test: torso(dy) },
+    { id: 'shirt', ramp: 'white', test: U(poly(mirror([[22.6, 28.8], [28.8, 28.8], [25.7, 34.4]]))), shade: { hi: -2, lo: 0.7 } },
+    { id: 'tie', ramp: 'tie', test: U(poly(mirror([[25, 29.4], [26.4, 29.4], [26.9, 35.4], [25.7, 36.9], [24.5, 35.4]]))) },
+    // near (left) arm hanging at his side, just in front of the body
+    { id: 'sleeveL', ramp: 'sleeve', lineColor: 'sleeveL', test: swingNear(poly(ARM_NEAR.sleeveLong)) },
+    { id: 'cuffL', ramp: 'white', test: swingNear(fluffy(ARM_NEAR.cuff[0], ARM_NEAR.cuff[1], 2.6, 1.9, 8, 0.25, 0.7)) },
+    { id: 'handL', ramp: 'skin', test: swingNear(ell(...ARM_NEAR.hand)) },
+    // white fur stole around the shoulders
+    { id: 'stole', ramp: 'white', shade: { hi: -0.7, lo: 0.5 }, test: U((x, y) =>   // a row of puffy cloud lumps
+      [[16, 28.6, 3.2], [19.6, 27.6, 3.5], [23.2, 28.4, 3.3], [26.8, 27.6, 3.5], [30.4, 28.4, 3.3], [33.8, 27.8, 3.3], [36.4, 28.8, 2.6]]
+        .some(([cx0, cy, r]) => Math.hypot(x - MX(cx0), y - cy) < r)) },
+  ],
+  hat: ({ U }) => [
+    // wide pinstriped hat, tilted up on the right
+    { id: 'crown', group: 'hat', ramp: 'hat', test: U(poly([[20.5, 13], [21, 8.6], [24.5, 7.2], [30.5, 7], [33.6, 8.2], [34.4, 12.2]])) },
+    { id: 'brim', group: 'hat', ramp: 'hat', test: U(ell(27.5, 13.6, 15.5, 2.5, -0.14)), shade: { hi: -0.3, lo: 0.45 } },
+  ],
+  decorate: ({ out, is }) => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      // pinstripes on the hat crown
+      if (is(x, y, 'crown') && out[y * S + x] !== 'hatS' && ((x + Math.round(y * 0.15)) % 3 === 0)) out[y * S + x] = 'stripe';
+      // diagonal stripes on the tie
+      if (is(x, y, 'tie') && (x + y) % 3 === 0) out[y * S + x] = 'stripe';
+    }
+  },
+  face: ({ put, PX, PY, bob }) => {
+    stamp(put, PX(25.3) - 3, PY(22.6) + bob, ['k.....k', '.kkkkk.'], { k: 'ink' });   // a simple smile
+  },
+  details: ({ put, PX, PY, bob }) => {
+    // double-breasted gold buttons
+    for (const bx of [21.6, 28.8]) for (const by of [33, 36.5, 40]) stamp(put, PX(MX(bx) - 1.8), PY(by) + bob, ['gG', 'GG'], { g: 'goldL', G: 'gold' });
+    // watch chain draped between the button rows
+    for (const [x, y] of [[29, 41.6], [28, 42.6], [26.6, 43.2], [25.2, 43.2], [23.8, 42.6], [22.8, 41.6]]) put(PX(MX(x)), PY(y) + bob, 'gold');
+    put(PX(MX(24.3)), PY(43.8) + bob, 'goldS');
+  },
+});
+
+// ---------------------------------------------------------------------
+// The rest of the gang: plain round yellow heads (no hair) sitting right down on the collar, a navy vest
+// over a sage short-sleeved shirt, and bare yellow forearms.
+// ---------------------------------------------------------------------
+const GANG_HEAD = { headDy: 1.4, hatSink: 0.5 };   // heads rest on the shoulders, hats sit down on the heads
+const gangOutfit = (extra = () => []) => (ctx) => {
+  const { U, dy, swingNear, swingFar } = ctx;
+  const skinArm = { ramp: 'skin', shade: { hi: -0.9, lo: 0.75 } };
+  return [
+    // far (right) arm, mostly behind the body
+    { id: 'sleeveR', ramp: 'shirt', lineColor: 'shirtD', test: swingFar(poly(ARM_FAR.sleeveShort)) },
+    { id: 'armR', ...skinArm, test: swingFar(bareArm(ARM_FAR)) },
+    // shirt underneath, then the vest over it (V-neck, sleeveless so the shirt shoulders show)
+    { id: 'shirtBody', ramp: 'shirt', lineColor: 'shirtS', test: torso(dy) },
+    { id: 'vest', ramp: 'vest', lineColor: 'vestL', test: U(poly(mirror([[19.4, 31], [22.4, 29.8], [25.7, 37.2], [29, 29.8], [31.8, 30.6], [33.2, 32.4],
+      [33, 36.4], [32, 40.6], [32.6, 44.6], [18.8, 44.6], [19.6, 40.6], [18.6, 36.4], [18.4, 32.4]]))) },
+    { id: 'tie', ramp: 'tie', test: U(poly(mirror([[25.2, 29.6], [26.2, 29.6], [26.6, 34.5], [25.7, 35.8], [24.8, 34.5]]))) },
+    ...extra(ctx),
+    // near (left) arm hanging at his side, just in front of the body
+    { id: 'sleeveL', ramp: 'shirt', lineColor: 'shirtD', test: swingNear(poly(ARM_NEAR.sleeveShort)) },
+    { id: 'armL', ...skinArm, test: swingNear(bareArm(ARM_NEAR)) },
+  ];
+};
+// small details every gang vest shares: two vest buttons below the V and a cuff fold on each sleeve
+const gangDetails = (more = () => {}) => (ctx) => {
+  const { put, putAny, PX, PY, bob, who } = ctx;
+  for (const by of [39.6, 42.2]) put(PX(25.7), PY(by) + bob, 'vestL');
+  for (const [x0, x1, y] of [ARM_NEAR.fold, ARM_FAR.fold]) {
+    for (let x = PX(x0); x <= PX(x1); x++) {
+      const py = PY(y) + bob;
+      if ((who[py * S + x] || '').startsWith('sleeve')) putAny(x, py, 'shirtS');
+    }
+  }
+  more(ctx);
+};
+
+// a strap across the vest down to a bag at the hip (#4's look; #3 and #5 wear variations of it)
+const satchel = ({ from, to, strap, bag, box }) => ({ U }) => [
+  { id: 'strap', ramp: strap, test: U(strip(mirror([from, to]), 0.55)) },
+  { id: 'satchel', ramp: bag, lineColor: bag + 'S', test: U(rrect(...mirrorBox(box), 1)) },
+];
+const satchelFlap = (box, color) => ({ put, PX, PY, bob }) => {
+  const [x0, y0, x1] = mirrorBox(box);
+  for (let x = PX(x0 + 0.2); x <= PX(x1 - 0.2); x++) put(x, PY(y0 + 1.8) + bob, color);
+};
+// a squared-off oval (for the tall fur hat), with a fuzzy edge
+const superEll = (cx, cy, rx, ry, amp, k) => (x, y) => {
+  const u = (x - cx) / rx, v = (y - cy) / ry;
+  return u ** 4 + v ** 4 < 1 + amp * Math.sin(Math.atan2(v, u) * k);
+};
+
+// 2. Caporegime ("Shades"): bald, white fur, ears growing straight out of his head; black sunglasses and a sideways smirk.
+ICONS.caporegime = bunnyTaur({
+  ...GANG_HEAD,
+  fur: 'wfur', earIn: 'wear', furRim: 'wfurS', furTuft: 'wfurS',
+  earsBehindHead: true,
+  earShift: [0, 6],
+  outfit: gangOutfit(),
+  face: (ctx) => {
+    const { put, PX, PY, bob } = ctx;
+    blush(ctx);
+    const cx = PX(25.3);
+    stamp(put, cx - 6, PY(19.4) + bob, [
+      'kkkkkkkkkkkkk',
+      '.kgkk...kgkk.',
+      '..kk.....kk..',
+    ], { k: 'ink', g: 'glint' });
+    stamp(put, cx + 1, PY(23.4) + bob, ['...k', 'kkk.'], { k: 'ink' });   // smirk off to one side
+  },
+  details: gangDetails(),
+});
+
+// 3. Contractee ("Top hat"): a white top hat with a dark band whose ribbon tails flutter behind him, and his bunny ears
+//    drooping down out of the sides of his head underneath it. Strap and pouch (a variation on #4's). A wink.
+const BAG3 = [28.6, 39.6, 32.8, 44];
+ICONS.contractee = bunnyTaur({
+  ...GANG_HEAD,
+  fur: 'wfur', earIn: 'wear', furRim: 'wfurS', furTuft: 'wfurS',
+  earsBehindHead: true,
+  // lop ears hanging down out of the sides of the head, under the brim (head centre is at x 25.8)
+  earSpec: [
+    { side: 'L', base: [19.6, 17.6], rest: [15.4, 20.66], restIn: [15.64, 20.48], rot: -2.2, rx: 2.2, ry: 6.2, ryIn: 4.6 },
+    { side: 'R', base: [32, 17.2], rest: [36.2, 20.26], restIn: [35.96, 20.08], rot: 2.2, rx: 2.2, ry: 6.2, ryIn: 4.6 },
+  ],
+  shadeFaceBy: ['brim', 'crown'],
+  outfit: gangOutfit(satchel({ from: [20.6, 30.4], to: [30.4, 40], strap: 'navy', bag: 'grey', box: BAG3 })),
+  hat: ({ U, ph }) => {
+    const w = i => Math.sin(ph + i) * 0.7;   // ribbon flutter
+    return [
+      { id: 'ribbon2', group: 'ribbon', ramp: 'navy', test: U(strip([[31.4, 13.2], [35.4, 15.6 + w(1)], [38.8, 16.2 + w(2)], [41.6, 18.8 + w(3)]], 0.75)) },
+      { id: 'ribbon1', group: 'ribbon', ramp: 'navy', test: U(strip([[31.4, 12.4], [35.8, 13.6 + w(0)], [39.8, 13 + w(1.5)], [43.6, 14.8 + w(2.5)]], 0.8)) },
+      { id: 'crown', group: 'tophat', ramp: 'grey', test: U(rrect(20, 2.6, 31.6, 14.6, 0.8)) },
+      { id: 'band', group: 'tophat', ramp: 'navy', test: U(rrect(20, 11.6, 31.6, 13.8, 0.3)), shade: { hi: -2, lo: 0.6 } },
+      { id: 'hatTop', group: 'tophat', ramp: 'grey', test: U(ell(25.8, 2.9, 5.6, 0.9)), shade: { hi: 2, lo: 3 } },
+      { id: 'brim', group: 'tophat', ramp: 'grey', test: U(ell(25.8, 14.8, 10.4, 1.5)), shade: { hi: -0.3, lo: 0.3 } },
+    ];
+  },
+  face: (ctx) => {
+    const { put, PX, PY, bob } = ctx;
+    blush(ctx);
+    const cx = PX(25.3);
+    stamp(put, cx - 5, PY(19.8) + bob, ['k..k', '.kk.'], { k: 'ink' });   // winking eye
+    stamp(put, cx + 2, PY(19.4) + bob, ['kk', 'kk'], { k: 'ink' });        // open eye
+    stamp(put, cx - 2, PY(23) + bob, ['k...k', '.kkk.'], { k: 'ink' });    // smile
+  },
+  details: gangDetails(satchelFlap(BAG3, 'greyS')),
+});
+
+// 4. Consigliere ("Newsie"): navy flat cap with a short visor (his bunny ears poke up through it), a round earmuff marked
+//    "L", a strap and satchel at his hip, and a grumpy look (side-eye and a wobbly mouth).
+const BAG4 = [28.4, 39.8, 33.2, 44.6];
+ICONS.consigliere = bunnyTaur({
+  ...GANG_HEAD,
+  fur: 'wfur', earIn: 'wear', furRim: 'wfurS', furTuft: 'wfurS',
+  shadeFaceBy: ['visor', 'crown'],
+  outfit: gangOutfit(satchel({ from: [20.6, 30.4], to: [30.6, 40.2], strap: 'shirt', bag: 'shirt', box: BAG4 })),
+  overFace: ({ U }) => [
+    { id: 'muff', ramp: 'navy', test: U(ell(33.2, 20.8, 3.2, 3.4)) },
+  ],
+  hat: ({ U }) => [
+    { id: 'crown', group: 'cap', ramp: 'navy', test: U((x, y) => ell(27.6, 11.2, 8.8, 3.9)(x, y) || rrect(19, 10.2, 36, 13.6, 1.5)(x, y)) },
+    { id: 'visor', group: 'cap', ramp: 'navy', test: U(ell(19.4, 14, 5.8, 1.5, -0.08)), shade: { hi: -0.3, lo: 0.2 } },
+  ],
+  face: (ctx) => {
+    const { put, PX, PY, bob } = ctx;
+    blush(ctx, [-1]);
+    const cx = PX(25.3);
+    stamp(put, cx - 5, PY(18.8) + bob, ['kk.', '..k', '..k'], { k: 'ink' });   // eye glaring sideways under a brow
+    stamp(put, cx, PY(18.8) + bob, ['.kk', 'k..', 'k..'], { k: 'ink' });
+    stamp(put, cx - 3, PY(23) + bob, ['.k.k.', 'k.k.k'], { k: 'ink' });         // wobbly mouth
+    stamp(put, PX(33.2) - 1, PY(20.8) - 2 + bob, ['w..', 'w..', 'w..', 'www'], { w: 'white' });   // "L" on the earmuff
+  },
+  details: gangDetails(satchelFlap(BAG4, 'shirtS')),
+});
+
+// 5. Soldier ("Russian hat"): a tall navy fur hat with a fluffy band (his bunny ears poke up through the top) and a
+//    rectangular ear flap hanging down over one eye, a scarf, a strap and satchel worn the other way (a variation on #4's), and a
+//    small content smile.
+const BAG5 = [20.6, 39.8, 25, 44.6];
+ICONS.soldier = bunnyTaur({
+  ...GANG_HEAD,
+  fur: 'wfur', earIn: 'wear', furRim: 'wfurS', furTuft: 'wfurS',
+  shadeFaceBy: ['furBand', 'furHat'],
+  outfit: gangOutfit(satchel({ from: [30.8, 30.2], to: [22.8, 40], strap: 'tie', bag: 'shirt', box: BAG5 })),
+  underFace: ({ U }) => [
+    { id: 'scarf', ramp: 'scarf', lineColor: 'scarfL', test: U((x, y) => ell(25.6, 28.6, 9.4, 2.6)(x, y) || poly([[18.6, 28.4], [22.2, 29], [21.2, 35.4], [18.4, 34.8]])(x, y)) },
+  ],
+  overFace: ({ U }) => [
+    // the hat's ear flap: a rectangle of the same fur hanging down over the side of his face (and one eye)
+    { id: 'flap', group: 'ushanka', ramp: 'navy', test: U(rrect(28.4, 13.6, 33.6, 25, 1.2)), shade: { hi: -0.8, lo: 0.5 } },
+  ],
+  hat: ({ U }) => [
+    { id: 'furHat', group: 'ushanka', ramp: 'navy', test: U(superEll(26, 9.6, 7.2, 5.4, 0.1, 16)) },
+    { id: 'furBand', group: 'ushanka', ramp: 'tband', test: U(superEll(26, 14.4, 8.6, 1.9, 0.2, 18)), shade: { hi: -0.6, lo: 0.4 } },
+  ],
+  decorate: ({ out, is }) => {
+    // fuzzy fur texture on the hat
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      if (is(x, y, 'furHat', 'flap') && out[y * S + x] === 'navy' && (x * 3 + y * 2) % 7 === 0) out[y * S + x] = 'navyL';
+    }
+  },
+  face: (ctx) => {
+    const { put, PX, PY, bob } = ctx;
+    blush(ctx, [-1]);
+    const cx = PX(25.3);
+    stamp(put, cx - 4, PY(19.6) + bob, ['k', 'k'], { k: 'ink' });             // the one visible eye
+    stamp(put, cx - 3, PY(23) + bob, ['k...k', '.kkk.'], { k: 'ink' });     // a small content smile
+  },
+  details: gangDetails(satchelFlap(BAG5, 'shirtS')),
+});
+
+// =====================================================================
+// ITEMS: 32×32 icons for snacks and money (what gets tossed onto the field and counted).
+// Same palette, outlines and top-left light as everything else. They're collected into
+// sprites/items-sheet.png by ATLASES below.
+// =====================================================================
+const item = draw => ({ size: 32, layout: 32, offset: [0, 0], frames: 1, ms: 0, draw });
+
+// Move, rotate and scale a shape: `test` is written in its own local space around (cx, cy); the result
+// draws it rotated by `rot`, scaled by `sc` and shifted by (dx, dy).
+const xf = (test, { cx = 16, cy = 16, dx = 0, dy = 0, rot = 0, sc = 1 }) => (x, y) => {
+  const vx = (x - cx - dx) / sc, vy = (y - cy - dy) / sc, c = Math.cos(-rot), s = Math.sin(-rot);
+  return test(cx + c * vx - s * vy, cy + s * vx + c * vy);
+};
+
+// One carrot, drawn pointing straight down in local space (tip at the bottom, leaves on top).
+// `t` places it; `p` prefixes the part ids so several carrots can share an icon.
+const carrotParts = (t, p = '') => [
+  { id: p + 'leafL', group: p + 'leaves', ramp: 'leaf', test: t(ell(13.6, 6, 1.4, 4.2, -0.4)) },
+  { id: p + 'leafR', group: p + 'leaves', ramp: 'leaf', test: t(ell(18.4, 6, 1.4, 4.2, 0.4)) },
+  { id: p + 'leafM', group: p + 'leaves', ramp: 'leaf', test: t(ell(16, 4.8, 1.4, 4.6, 0)) },
+  { id: p + 'carrot', group: p + 'carrot', ramp: 'carrot', shade: { hi: -0.55, lo: 0.4 },
+    test: t((x, y) => poly([[11.4, 10.4], [20.6, 10.4], [16.7, 29.4], [15.3, 29.4]])(x, y) || ell(16, 10.6, 4.7, 2.6)(x, y)) },
+  // little ridges across the carrot (same group, so no outline around them)
+  ...[[13.2, 14.6, 15.6, 14.6], [16.6, 18.4, 18.8, 18.4], [14, 22.2, 15.8, 22.2], [16.4, 25.6, 17.4, 25.6]].map(([x0, y0, x1, y1], i) =>
+    ({ id: p + 'ridge' + i, group: p + 'carrot', ramp: 'carrotS', shade: { hi: -9, lo: 9 }, test: t(strip([[x0, y0], [x1, y1]], 0.5)) })),
+];
+
+// a tiny hand-placed carrot (6×6) for logos and stamps, where a shrunken carrot shape would just smudge
+const tinyCarrot = (put, x, y, o = 'carrot', g = 'leaf') =>
+  stamp(put, x, y, ['...g.g', '...gg.', '..oo..', '.oo...', 'oo....', 'o.....'], { o, g });
+
+const ITEM_ICONS = {};
+
+// 🥕 Carrot: tipped over at an angle, leaves up and to the right.
+ITEM_ICONS.carrot = item(() => render(carrotParts(test => xf(test, { rot: -0.75, dy: 1 }))));
+
+// 🥕🥕🥕 Carrot bundle: three carrots fanned out from one point near their tops, tied there with a red bow.
+ITEM_ICONS.carrotBundle = item(() => {
+  // each carrot pivots about the top of its body (local 16, 11), which sits at the tie point
+  const fan = [[0.52, 'a'], [-0.52, 'b'], [0, 'c']];   // outer two first, the middle one in front
+  const parts = fan.flatMap(([rot, p]) => carrotParts(test => xf(test, { cx: 16, cy: 11, rot, sc: 0.94, dy: -2.4 }), p));
+  return render([
+    ...parts,
+    { id: 'tie', group: 'bow', ramp: 'ribbon', test: strip([[11.8, 10.4], [20.2, 10.4]], 1.1) },
+    { id: 'loopL', group: 'bow', ramp: 'ribbon', test: ell(12, 10.2, 2.8, 1.9, -0.3) },
+    { id: 'loopR', group: 'bow', ramp: 'ribbon', test: ell(20, 10.2, 2.8, 1.9, 0.3) },
+    { id: 'tailL', group: 'bow', ramp: 'ribbon', test: strip([[15.4, 11.2], [13.6, 15.8]], 0.75) },
+    { id: 'tailR', group: 'bow', ramp: 'ribbon', test: strip([[16.6, 11.2], [18.6, 15.6]], 0.75) },
+    { id: 'knot', ramp: 'ribbonS', shade: { hi: -9, lo: 9 }, test: ell(16, 10.4, 1.6, 1.6) },
+  ]);
+});
+
+// 🍀 Clover: four heart-shaped leaves around the middle, and a curving stem.
+ITEM_ICONS.clover = item(() => {
+  const leaves = [0.785, 2.356, 3.927, 5.498].map((a, i) => {
+    const lx = 15.6 + Math.cos(a) * 5.4, ly = 13.6 + Math.sin(a) * 5.4;   // leaf centre
+    const px = -Math.sin(a) * 1.9, py = Math.cos(a) * 1.9;               // across the leaf
+    return { id: 'leaf' + i, ramp: 'clover', shade: { hi: -0.5, lo: 0.5 },
+      test: (x, y) => ell(lx + px, ly + py, 3.4, 3.4)(x, y) || ell(lx - px, ly - py, 3.4, 3.4)(x, y) ||
+        ell(15.6 + Math.cos(a) * 2.6, 13.6 + Math.sin(a) * 2.6, 2.2, 2.2)(x, y) };
+  });
+  return render([
+    { id: 'stem', ramp: 'cloverS', shade: { hi: -9, lo: 9 }, test: strip([[16, 15], [18.6, 22], [21.6, 28.6]], 0.9) },
+    ...leaves,
+  ], ({ put }) => {
+    // a lighter vein down the middle of each leaf
+    for (const a of [0.785, 2.356, 3.927, 5.498]) for (let r = 2.2; r <= 6.8; r += 1.1)
+      put(Math.round(15.6 + Math.cos(a) * r), Math.round(13.6 + Math.sin(a) * r), 'cloverL');
+  });
+});
+
+// 🍓 Strawberry: a red berry with a green leafy cap and little yellow seeds.
+ITEM_ICONS.strawberry = item(() => render([
+  { id: 'berry', ramp: 'berry', shade: { hi: -0.5, lo: 0.4 },
+    test: (x, y) => ell(16, 16.6, 8.6, 7.6)(x, y) || poly([[7.8, 17.4], [24.2, 17.4], [16.6, 29.6], [15.4, 29.6]])(x, y) },
+  { id: 'cap', ramp: 'leaf', shade: { hi: -0.6, lo: 0.5 },
+    test: poly([[16, 7.6], [18.2, 9.6], [22.6, 9], [20, 11.8], [21.4, 13.4], [16, 12.2], [10.6, 13.4], [12, 11.8], [9.4, 9], [13.8, 9.6]]) },
+  { id: 'stalk', ramp: 'leafS', shade: { hi: -9, lo: 9 }, test: strip([[16, 8.6], [17.2, 4.4]], 0.8) },
+], ({ put, who }) => {
+  for (const [x, y] of [[11, 15], [15, 15], [20, 15], [13, 19], [18, 19], [22, 18], [10, 19], [15, 23], [20, 22], [17, 26], [12, 22]]) {
+    if (who[y * S + x] === 'berry') put(x, y, 'seed');
+  }
+}));
+
+// 🥬 Lettuce: a round head with frilly edges and leaf folds curling in to a pale heart.
+ITEM_ICONS.lettuce = item(() => render([
+  { id: 'head', ramp: 'lettuce', shade: { hi: -0.5, lo: 0.45 }, test: blob(16, 17, 12, 11, 0.07, 11, 0.3) },
+  { id: 'fold1', group: 'head', ramp: 'lettuceL', shade: { hi: -9, lo: 9 }, test: blob(14.6, 15.4, 7.6, 6.8, 0.08, 9, 1.1) },
+  { id: 'heart', group: 'head', ramp: 'lettuceL', shade: { hi: -0.3, lo: 0.6 }, test: blob(13.6, 14, 4.2, 3.6, 0.1, 7, 2) },
+], ({ put, who }) => {
+  // darker vein lines fanning out from the heart
+  for (const a of [0.3, 1.1, 1.9, 2.7, 3.6]) for (let r = 5; r <= 10; r++) {
+    const x = Math.round(13.6 + Math.cos(a) * r), y = Math.round(14 + Math.sin(a) * r * 0.9);
+    if (who[y * S + x] === 'head') put(x, y, 'lettuceS');
+  }
+}));
+
+// 🍕 Pizza: a slice pointing down, with a puffy crust along the top and pepperoni.
+ITEM_ICONS.pizza = item(() => render([
+  { id: 'cheese', ramp: 'cheese', shade: { hi: -0.6, lo: 0.5 }, test: poly([[5, 9], [27, 9], [16.6, 29.6], [15.4, 29.6]]) },
+  { id: 'crust', ramp: 'crust', shade: { hi: -0.6, lo: 0.3 }, test: (x, y) => ell(16, 8, 12.6, 3.6)(x, y) },
+  ...[[12, 14, 2.6], [19.6, 15, 2.4], [15.6, 21, 2.3]].map(([x, y, r], i) =>
+    ({ id: 'pep' + i, ramp: 'pep', shade: { hi: -0.4, lo: 0.4 }, test: ell(x, y, r, r) })),
+], ({ put, who }) => {
+  // drips of melted cheese over the crust edge
+  for (const [x, y] of [[9, 11], [22, 12], [17, 25]]) if (who[y * S + x] === 'cheese') put(x, y, 'cheeseL');
+}));
+
+// 🥫 Can: a tin can with a red label and a white stripe.
+ITEM_ICONS.can = item(() => render([
+  { id: 'tin', ramp: 'tin', shade: { hi: -0.7, lo: 0.4 }, test: (x, y) => rrect(8, 8.4, 24, 26.6, 1)(x, y) || ell(16, 26.6, 8, 2.2)(x, y) },
+  { id: 'label', ramp: 'label', shade: { hi: -0.7, lo: 0.4 }, test: (x, y) => rrect(8, 12, 24, 23.6, 0)(x, y) || ell(16, 23.6, 8, 1.6)(x, y) },
+  { id: 'stripe', group: 'label', ramp: 'white', shade: { hi: -0.7, lo: 0.5 }, test: rrect(8, 16.4, 24, 19, 0) },
+  { id: 'lid', ramp: 'tin', shade: { hi: 2, lo: 3 }, test: ell(16, 8.4, 8, 2.4) },
+  { id: 'lidRim', group: 'lid', ramp: 'tin', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(16, 8.4, 8, 2.4)(x, y) && !ell(16, 8.4, 6.4, 1.5)(x, y) },
+]));
+
+// 💼 Briefcase: brown leather with a handle, a seam, and two gold clasps.
+ITEM_ICONS.briefcase = item(() => render([
+  { id: 'handle', ramp: 'leatherS', shade: { hi: -9, lo: 9 }, test: strip([[12, 11.6], [12.6, 7.4], [19.4, 7.4], [20, 11.6]], 1.2) },
+  { id: 'case', ramp: 'leather', shade: { hi: -0.6, lo: 0.4 }, test: rrect(3.6, 11, 28.4, 26.6, 2.4) },
+  { id: 'flap', group: 'case', ramp: 'leatherL', shade: { hi: -9, lo: 9 }, test: rrect(3.6, 11, 28.4, 15.6, 2.4) },
+  { id: 'claspL', ramp: 'gold', shade: { hi: -0.5, lo: 0.5 }, test: rrect(8.4, 14, 11.6, 17.6, 0.6) },
+  { id: 'claspR', ramp: 'gold', shade: { hi: -0.5, lo: 0.5 }, test: rrect(20.4, 14, 23.6, 17.6, 0.6) },
+]));
+
+// 🧃 Juice box: bootleg carrot juice, an orange carton with a white label and a bendy straw.
+ITEM_ICONS.juice = item(() => render([
+  { id: 'straw', ramp: 'straw', shade: { hi: -9, lo: 9 }, test: strip([[19.6, 8.6], [20.4, 4.4], [23.6, 2.6]], 0.9) },
+  { id: 'carton', ramp: 'juice', shade: { hi: -0.6, lo: 0.35 }, test: rrect(8.6, 7.6, 23.4, 28.6, 1.4) },
+  { id: 'top', group: 'carton', ramp: 'juiceL', shade: { hi: -9, lo: 9 }, test: rrect(8.6, 7.6, 23.4, 10, 1.4) },
+  { id: 'labelW', ramp: 'white', shade: { hi: -0.7, lo: 0.6 }, test: rrect(10.6, 13.4, 21.4, 25, 2) },
+], ({ put }) => tinyCarrot(put, 13, 16)));
+
+// 🪙 Casino coin: a gold coin, edge showing, with a carrot stamped in the middle.
+ITEM_ICONS.coin = item(() => render([
+  { id: 'edge', ramp: 'goldS', shade: { hi: -9, lo: 9 }, test: ell(16.6, 17.4, 11.4, 11.4) },
+  { id: 'face', ramp: 'gold', shade: { hi: -0.5, lo: 0.5 }, test: ell(15.6, 15.6, 11, 11) },
+  { id: 'inner', ramp: 'gold', shade: { hi: -9, lo: 9 }, test: ell(15.6, 15.6, 7.6, 7.6) },
+], ({ put }) => tinyCarrot(put, 13, 13, 'goldS', 'goldS')));   // a carrot pressed into the coin
+
+// 💰 Money bag: a tied sack with a "$" on it.
+ITEM_ICONS.moneyBag = item(() => render([
+  { id: 'sack', ramp: 'sack', shade: { hi: -0.5, lo: 0.45 }, test: (x, y) => blob(16, 20, 10.4, 9.2, 0.04, 6, 0.4)(x, y) || poly([[12.4, 9.6], [19.6, 9.6], [18.6, 13], [13.4, 13]])(x, y) },
+  { id: 'ruffle', ramp: 'sack', shade: { hi: -0.5, lo: 0.6 }, test: blob(16, 7.6, 5.2, 2.6, 0.12, 8, 0) },
+  { id: 'twine', ramp: 'leatherS', shade: { hi: -9, lo: 9 }, test: strip([[12.6, 11.4], [19.4, 11.4]], 0.85) },
+], ({ put, PX, PY }) => {
+  stamp(put, 14, 15, ['.kkk', 'k.k.', '.kk.', '..kk', 'kkk.', '.k..'], { k: 'cashD' });
+}));
+
+// 💵 Cash: a little stack of green bills with a paper band.
+ITEM_ICONS.cash = item(() => render([
+  { id: 'billBack', ramp: 'cashD', shade: { hi: -9, lo: 9 }, test: rrect(5.4, 12.6, 30.4, 24.6, 1) },
+  { id: 'bill', ramp: 'cash', shade: { hi: -0.6, lo: 0.4 }, test: rrect(2.6, 9.6, 27.6, 21.6, 1) },
+  { id: 'oval', ramp: 'cashL', shade: { hi: -9, lo: 9 }, test: ell(15.1, 15.6, 4.2, 3.6) },
+  { id: 'band', ramp: 'white', shade: { hi: -0.6, lo: 0.5 }, test: rrect(19.6, 8.6, 22.4, 22.6, 0.4) },
+], ({ put }) => {
+  stamp(put, 14, 13, ['.kk', 'kk.', '.kk', 'kk.', '.k.'], { k: 'cashD' });
+  for (const [x, y] of [[5, 12], [25, 12], [5, 19], [25, 19]]) put(x, y, 'cashL');
+}));
+
+// ---------------------------------------------------------------------
+// More 32×32 icons: every other emoji the game uses (sources, skills, ranks, events, misc).
+// They join ITEM_ICONS so they land on the same sheet (items-sheet.png).
+// ---------------------------------------------------------------------
+Object.assign(PAL, {
+  wood: '#a0683a', woodS: '#7a4a26', woodL: '#c88a52',
+  brick: '#b8483a', brickS: '#8a3028', brickL: '#d86a5a',
+  stone: '#8f8f96', stoneS: '#6a6a72', stoneL: '#b4b4bc',
+  glass: '#7ec8e8', glassS: '#4a98c0', glassL: '#c4ecfa',
+  gubEar: '#c9daf6', gubEarS: '#9fb3e2', gubEarL: '#e2ecfb',
+  pink: '#f2a2b8', pinkS: '#d97b96', pinkL: '#ffc8d6',
+  purple: '#9a6ad8', purpleS: '#6e44a8', purpleL: '#c49af0',
+  ice: '#bfe8ff', iceS: '#86c4e8', iceL: '#f0faff',
+  sky: '#5aa8e8', skyS: '#3a78c0', skyL: '#9ad0ff',
+  cloud: '#e8ecf4', cloudS: '#b8c0d4', cloudL: '#ffffff',
+  paper: '#f0e6c8', paperS: '#cdbf98', paperL: '#fff8e0',
+  amber: '#e09a3a', amberS: '#b06e20', amberL: '#f8c070',
+  rock: '#8a7a6a', rockS: '#665848', rockL: '#ac9a86',
+  steel: '#5a5e6e', steelS: '#3e4150', steelL: '#80859a',
+  sun: '#ffd23c', sunS: '#e0a020', sunL: '#fff08a',
+  hero: '#3a6ad8', heroS: '#284aa0', heroL: '#6a9af0',
+});
+// little helpers for faces and stars
+const star = (cx, cy, ro, ri, n = 5, rot = -Math.PI / 2) =>
+  poly([...Array(n * 2)].map((_, i) => { const r = i % 2 ? ri : ro, a = rot + i * Math.PI / n; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; }));
+const yellowFace = (extra = []) => [{ id: 'face', ramp: 'skin', shade: { hi: -0.5, lo: 0.6 }, test: ell(16, 16, 12, 11.4) }, ...extra];
+const ink = { k: 'ink' };
+
+// ---- snack sources ----
+// 🧑‍🌾 the farmer gang: Mafioso's pinstriped hat with black bunny ears and his shadowed yellow face
+ITEM_ICONS.mafioso = item(() => render([
+  { id: 'earL', ramp: 'fur', test: ell(12, 7, 2.2, 6, -0.25) },
+  { id: 'earLIn', group: 'earL', ramp: 'earIn', shade: { hi: -9, lo: 9 }, test: ell(12, 7.4, 0.9, 4.2, -0.25) },
+  { id: 'earR', ramp: 'fur', test: ell(20.6, 6.6, 2.2, 6, 0.28) },
+  { id: 'earRIn', group: 'earR', ramp: 'earIn', shade: { hi: -9, lo: 9 }, test: ell(20.6, 7, 0.9, 4.2, 0.28) },
+  { id: 'hair', ramp: 'fur', test: fluffy(16, 21, 11, 8.4, 11, 0.16) },
+  { id: 'face', ramp: 'skin', shade: { hi: -0.8, lo: 0.8 }, test: ell(15.6, 21.4, 7, 6) },
+  { id: 'crown', group: 'hat', ramp: 'hat', test: poly([[9.4, 15], [10, 9.4], [14, 8], [20, 8], [22.6, 9.4], [23.4, 14.6]]) },
+  { id: 'brim', group: 'hat', ramp: 'hat', shade: { hi: -0.3, lo: 0.45 }, test: ell(16, 15, 13.6, 2.6, -0.1) },
+], ({ out, who, at, put }) => {
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (who[y * S + x] === 'crown' && out[y * S + x] === 'hat' && x % 3 === 0) out[y * S + x] = 'stripe';
+    if (who[y * S + x] === 'face' && (at(x, y - 1) === 'brim' || at(x, y - 2) === 'brim')) out[y * S + x] = 'skinD';
+  }
+  stamp(put, 12, 23, ['k.....k', '.kkkkk.'], ink);
+}));
+
+// 🌿 strawberry bush: a round leafy bush dotted with red berries
+ITEM_ICONS.bush = item(() => render([
+  { id: 'bush', ramp: 'leaf', shade: { hi: -0.5, lo: 0.45 }, test: (x, y) => blob(16, 19, 13, 10, 0.08, 10, 0.4)(x, y) || blob(16, 11, 8, 6, 0.1, 8, 1)(x, y) },
+  ...[[9, 18], [20, 13], [23, 22], [13, 25], [16, 17]].map(([x, y], i) =>
+    ({ id: 'b' + i, ramp: 'berry', shade: { hi: -0.3, lo: 0.4 }, test: ell(x, y, 2.4, 2.2) })),
+], ({ put }) => { for (const [x, y] of [[8, 17], [19, 12], [22, 21], [12, 24], [15, 16]]) put(x, y, 'berryL'); }));
+
+// 🛒 veggie cart: a wooden cart heaped with lettuce, on two wheels
+ITEM_ICONS.cart = item(() => render([
+  { id: 'lettuce1', group: 'veg', ramp: 'lettuce', test: blob(11.6, 12.6, 5.4, 4.6, 0.1, 8) },
+  { id: 'lettuce2', group: 'veg2', ramp: 'lettuce', test: blob(20.4, 12.2, 5.6, 4.8, 0.1, 8, 1) },
+  { id: 'box', ramp: 'wood', shade: { hi: -0.6, lo: 0.45 }, test: poly([[3, 14], [29, 14], [27, 23], [5, 23]]) },
+  { id: 'handle', ramp: 'woodS', shade: { hi: -9, lo: 9 }, test: strip([[27.6, 15], [31, 10.6]], 0.8) },
+  { id: 'wheelL', ramp: 'steel', shade: { hi: -0.5, lo: 0.4 }, test: ell(9.4, 25, 4, 4) },
+  { id: 'wheelR', ramp: 'steel', shade: { hi: -0.5, lo: 0.4 }, test: ell(22.6, 25, 4, 4) },
+], ({ put }) => {
+  for (let x = 6; x <= 26; x++) put(x, 18, 'woodS');
+  for (const c of [9, 22]) { put(c, 25, 'steelL'); }
+}));
+
+// 🏪 pizzeria: a little brick shop with a striped red awning and a pizza sign
+ITEM_ICONS.pizzeria = item(() => render([
+  { id: 'wall', ramp: 'brick', shade: { hi: -0.7, lo: 0.4 }, test: rrect(4, 9, 28, 29, 0.5) },
+  { id: 'awning', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: poly([[2.4, 12], [29.6, 12], [28, 16.6], [4, 16.6]]) },
+  { id: 'window', ramp: 'glass', shade: { hi: -0.6, lo: 0.4 }, test: rrect(6.6, 19, 15, 26, 0.4) },
+  { id: 'door', ramp: 'wood', shade: { hi: -0.6, lo: 0.4 }, test: rrect(18, 18.6, 25, 29, 0.4) },
+  { id: 'sign', ramp: 'cheese', shade: { hi: -0.5, lo: 0.5 }, test: poly([[10, 2], [22, 2], [16, 10.6]]) },
+], ({ put, who }) => {
+  for (let x = 3; x <= 29; x++) for (let y = 12; y <= 16; y++) if (who[y * S + x] === 'awning' && Math.floor((x - 3) / 3) % 2) put(x, y, 'white');
+  for (const [x, y] of [[14, 4], [18, 4], [16, 7]]) put(x, y, 'pep');
+  put(23, 24, 'gold');
+}));
+
+// 🏚️ abandoned warehouse: a grey shed with a sagging roof, boarded window and a cracked wall
+ITEM_ICONS.warehouse = item(() => render([
+  { id: 'roof', ramp: 'steel', shade: { hi: -0.6, lo: 0.4 }, test: poly([[2, 13], [16, 4], [30, 12], [30, 15], [2, 16]]) },
+  { id: 'wall', ramp: 'stone', shade: { hi: -0.7, lo: 0.4 }, test: rrect(4, 14, 28, 29, 0.4) },
+  { id: 'door', ramp: 'woodS', shade: { hi: -9, lo: 9 }, test: rrect(17, 19, 24.6, 29, 0.3) },
+  { id: 'window', ramp: 'ink', shade: { hi: -9, lo: 9 }, test: rrect(7, 18, 13.6, 24, 0.3) },
+  { id: 'plank1', ramp: 'wood', shade: { hi: -9, lo: 9 }, test: strip([[6.6, 19.4], [14, 23]], 0.8) },
+  { id: 'plank2', ramp: 'wood', shade: { hi: -9, lo: 9 }, test: strip([[6.6, 22.6], [14, 19.6]], 0.8) },
+], ({ put }) => {
+  for (const [x, y] of [[20, 15], [21, 16], [21, 17], [22, 18]]) put(x, y, 'stoneS');
+  for (let y = 20; y <= 28; y += 2) put(20, y, 'wood');
+}));
+
+// 🏢 the Front: a tall, very legitimate office block with rows of windows
+ITEM_ICONS.front = item(() => render([
+  { id: 'tower', ramp: 'stone', shade: { hi: -0.7, lo: 0.4 }, test: rrect(7, 3, 25, 29, 0.6) },
+  { id: 'door', ramp: 'glassS', shade: { hi: -9, lo: 9 }, test: rrect(13.6, 23.4, 18.4, 29, 0.3) },
+], ({ put }) => {
+  for (let y = 6; y <= 20; y += 4) for (let x = 9; x <= 22; x += 4) stamp(put, x, y, ['gg', 'gG'], { g: 'glass', G: 'glassL' });
+  for (let x = 7; x <= 25; x++) put(x, 22, 'stoneS');
+}));
+
+// 🚚 bootlegger's truck: a dark delivery truck with a cab, a box, and a carrot on the side
+ITEM_ICONS.truck = item(() => render([
+  { id: 'box', ramp: 'hat', shade: { hi: -0.6, lo: 0.4 }, test: rrect(2, 7, 20, 23, 0.8) },
+  { id: 'cab', ramp: 'ribbon', shade: { hi: -0.6, lo: 0.4 }, test: poly([[20, 12], [26, 12], [30, 17], [30, 23], [20, 23]]) },
+  { id: 'cabWin', ramp: 'glass', shade: { hi: -0.6, lo: 0.6 }, test: poly([[21.4, 13.4], [25.4, 13.4], [28.4, 17.4], [21.4, 17.4]]) },
+  { id: 'wheelL', ramp: 'steel', shade: { hi: -0.5, lo: 0.2 }, test: ell(8, 24.6, 3.6, 3.6) },
+  { id: 'wheelR', ramp: 'steel', shade: { hi: -0.5, lo: 0.2 }, test: ell(24.6, 24.6, 3.6, 3.6) },
+], ({ put }) => { tinyCarrot(put, 8, 12); put(8, 24, 'steelL'); put(24, 24, 'steelL'); }));
+
+// 🎰 Lucky Foot Casino: a red slot machine showing three carrots, with a pull lever
+ITEM_ICONS.slots = item(() => render([
+  { id: 'lever', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: strip([[27, 20], [29, 12]], 0.8) },
+  { id: 'knob', ramp: 'ribbon', shade: { hi: -0.5, lo: 0.5 }, test: ell(29, 10.6, 2, 2) },
+  { id: 'body', ramp: 'label', shade: { hi: -0.6, lo: 0.4 }, test: rrect(4, 5, 27, 29, 2) },
+  { id: 'top', group: 'body', ramp: 'gold', shade: { hi: -0.5, lo: 0.5 }, test: rrect(4, 5, 27, 9.6, 2) },
+  { id: 'reels', ramp: 'white', shade: { hi: -9, lo: 9 }, test: rrect(6.6, 12, 24.4, 21, 0.6) },
+  { id: 'tray', ramp: 'steel', shade: { hi: -9, lo: 9 }, test: rrect(8, 24, 23, 27, 0.4) },
+], ({ put }) => {
+  for (const x of [7, 13, 19]) tinyCarrot(put, x, 13);
+  for (const x of [12, 18]) for (let y = 12; y <= 21; y++) put(x, y, 'tinS');
+}));
+
+// ---- events, ranks and everything else ----
+// 🎩 top hat (the Godbunny's hat, and the Fedora skill)
+ITEM_ICONS.tophat = item(() => render([
+  { id: 'crown', group: 'hat', ramp: 'hat', shade: { hi: -0.6, lo: 0.4 }, test: rrect(9, 5, 23, 23, 1) },
+  { id: 'band', group: 'hat', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: rrect(9, 18, 23, 21.4, 0) },
+  { id: 'brim', group: 'hat', ramp: 'hat', shade: { hi: -0.4, lo: 0.4 }, test: ell(16, 23.6, 14, 3.4) },
+  { id: 'top', group: 'hat', ramp: 'hatL', shade: { hi: -9, lo: 9 }, test: ell(16, 5.4, 6.6, 1.4) },
+]));
+
+// 🚗 heist getaway car: a black sedan with tinted windows
+ITEM_ICONS.car = item(() => render([
+  { id: 'body', ramp: 'hat', shade: { hi: -0.6, lo: 0.4 }, test: (x, y) => rrect(1.6, 15, 30.4, 24, 2.4)(x, y) || poly([[7.6, 15.4], [11, 9], [21.4, 9], [25.4, 15.4]])(x, y) },
+  { id: 'winF', ramp: 'glassS', shade: { hi: -0.6, lo: 0.6 }, test: poly([[10, 15], [12.4, 10.6], [15.4, 10.6], [15.4, 15]]) },
+  { id: 'winB', ramp: 'glassS', shade: { hi: -0.6, lo: 0.6 }, test: poly([[17, 15], [17, 10.6], [20.6, 10.6], [23.2, 15]]) },
+  { id: 'wheelL', ramp: 'steel', shade: { hi: -0.5, lo: 0.2 }, test: ell(8.4, 24, 3.6, 3.6) },
+  { id: 'wheelR', ramp: 'steel', shade: { hi: -0.5, lo: 0.2 }, test: ell(23.6, 24, 3.6, 3.6) },
+], ({ put }) => { put(29, 18, 'sun'); put(2, 18, 'ribbon'); put(8, 23, 'steelL'); put(23, 23, 'steelL'); }));
+
+// 🧢 Associate's cap: a navy flat cap with a short brim
+ITEM_ICONS.cap = item(() => render([
+  { id: 'crown', group: 'cap', ramp: 'navy', shade: { hi: -0.6, lo: 0.45 }, test: (x, y) => ell(17, 15, 11.6, 7.6)(x, y) && y < 20 },
+  { id: 'brim', group: 'cap', ramp: 'navy', shade: { hi: -0.3, lo: 0.2 }, test: ell(9, 19.6, 8, 2.4, -0.1) },
+  { id: 'button', ramp: 'navyL', shade: { hi: -9, lo: 9 }, test: ell(17, 7.8, 1.6, 1.2) },
+], ({ put }) => { for (let x = 9; x <= 27; x++) put(x, 17, 'navyS'); }));
+
+// 🔫 Soldier rank: a cartoony old-timey pistol
+ITEM_ICONS.pistol = item(() => render([
+  { id: 'grip', ramp: 'wood', shade: { hi: -0.6, lo: 0.4 }, test: poly([[6, 15], [12.6, 15], [11, 27], [4, 26]]) },
+  { id: 'barrel', ramp: 'steel', shade: { hi: -0.6, lo: 0.4 }, test: rrect(5, 10, 29, 16, 1) },
+  { id: 'guard', ramp: 'steelS', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(15, 17.6, 3, 2.6)(x, y) && !ell(15, 17.6, 1.6, 1.4)(x, y) && y > 16 },
+  { id: 'sight', ramp: 'steelS', shade: { hi: -9, lo: 9 }, test: rrect(26, 8.4, 28, 10, 0) },
+], ({ put }) => { for (let x = 8; x <= 27; x++) put(x, 11, 'steelL'); }));
+
+// 🥃 Underboss: a whiskey tumbler with an ice cube
+ITEM_ICONS.whiskey = item(() => render([
+  { id: 'glass', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: poly([[6, 8], [26, 8], [24, 27], [8, 27]]) },
+  { id: 'drink', ramp: 'amber', shade: { hi: -0.6, lo: 0.4 }, test: poly([[7.2, 15], [24.8, 15], [23.6, 25.6], [8.4, 25.6]]) },
+  { id: 'cube', ramp: 'ice', shade: { hi: -0.5, lo: 0.5 }, test: rrect(12, 12, 18, 18, 1) },
+], ({ put }) => { for (let y = 9; y <= 24; y++) put(8, y, 'cloudL'); }));
+
+// 📜 Consigliere: a rolled paper scroll with writing
+ITEM_ICONS.scroll = item(() => render([
+  { id: 'sheet', ramp: 'paper', shade: { hi: -0.6, lo: 0.5 }, test: rrect(7, 6, 25, 26, 0.5) },
+  { id: 'rollT', ramp: 'paper', shade: { hi: -0.3, lo: 0.2 }, test: ell(16, 6, 11, 2.8) },
+  { id: 'rollB', ramp: 'paper', shade: { hi: -0.3, lo: 0.2 }, test: ell(16, 26, 11, 2.8) },
+], ({ put }) => { for (const y of [11, 14, 17, 20]) for (let x = 10; x <= (y === 20 ? 17 : 22); x++) if (x % 5 !== 0) put(x, y, 'rockS'); }));
+
+// 🗞️ The Daily Carrot: a folded newspaper with a headline and columns
+ITEM_ICONS.newspaper = item(() => render([
+  { id: 'back', ramp: 'paperS', shade: { hi: -9, lo: 9 }, test: rrect(6, 4, 28, 26, 0.6) },
+  { id: 'page', ramp: 'paper', shade: { hi: -0.6, lo: 0.5 }, test: rrect(3, 7, 25, 29, 0.6) },
+], ({ put }) => {
+  for (let x = 6; x <= 22; x++) { put(x, 10, 'ink'); put(x, 11, 'ink'); }
+  for (const y of [14, 16, 18, 20, 22, 24, 26]) { for (let x = 6; x <= 12; x++) put(x, y, 'rockS'); for (let x = 15; x <= 22; x++) put(x, y, 'rockS'); }
+  tinyCarrot(put, 16, 14);
+}));
+
+// ⛰️ Carrot Mountain: a rocky peak heaped with carrots, with a little flag on top
+ITEM_ICONS.mountain = item(() => render([
+  { id: 'rock', ramp: 'rock', shade: { hi: -0.5, lo: 0.4 }, test: poly([[1, 29], [13, 8], [16, 10], [19, 6], [31, 29]]) },
+  { id: 'pile', ramp: 'carrot', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => blob(16, 27, 13, 6, 0.12, 13)(x, y) && y < 29.5 },
+  { id: 'pole', ramp: 'woodS', shade: { hi: -9, lo: 9 }, test: strip([[19, 6.6], [19, 1.4]], 0.5) },
+  { id: 'flag', ramp: 'leaf', shade: { hi: -9, lo: 9 }, test: poly([[19.4, 1.4], [24, 2.8], [19.4, 4.4]]) },
+], ({ put, who }) => {
+  for (const [x, y] of [[7, 25], [12, 23], [17, 24], [22, 23], [25, 26], [10, 27], [20, 27]]) if (who[y * S + x] === 'pile') { put(x, y, 'carrotS'); put(x + 1, y - 1, 'leaf'); }
+}));
+
+// 🔒 lock: a gold padlock
+ITEM_ICONS.lock = item(() => render([
+  { id: 'shackle', ramp: 'steelL', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => ell(16, 13, 7, 8)(x, y) && !ell(16, 13, 4.2, 5.4)(x, y) && y < 16 },
+  { id: 'body', ramp: 'gold', shade: { hi: -0.6, lo: 0.4 }, test: rrect(7, 14, 25, 29, 2) },
+  { id: 'hole', ramp: 'goldS', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(16, 20, 2, 2)(x, y) || rrect(15.2, 20, 16.8, 25, 0)(x, y) },
+]));
+// ---- skills and upgrades ----
+// 🐰 Gubby: the white bunny's face, pale blue inner ears, smug Gubby eyes and smirk
+ITEM_ICONS.gubby = item(() => render([
+  { id: 'earL', ramp: 'wfur', lineColor: 'wfurS', test: ell(11, 8, 3, 7.4, -0.2) },
+  { id: 'earLIn', group: 'earL', ramp: 'gubEar', shade: { hi: -9, lo: 9 }, test: ell(11, 8.6, 1.3, 5.2, -0.2) },
+  { id: 'earR', ramp: 'wfur', lineColor: 'wfurS', test: ell(21, 8, 3, 7.4, 0.2) },
+  { id: 'earRIn', group: 'earR', ramp: 'gubEar', shade: { hi: -9, lo: 9 }, test: ell(21, 8.6, 1.3, 5.2, 0.2) },
+  { id: 'head', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: fluffy(16, 20.6, 12, 9.4, 14, 0.07) },
+], ({ put }) => {
+  stamp(put, 10, 18, ['kk.', 'kkk', 'kkk', '.k.'], ink);
+  stamp(put, 19, 18, ['.kk', 'kkk', 'kkk', '.k.'], ink);
+  stamp(put, 11, 24, ['.........kk', '......kk.k.', '..kkkk..k..', 'kk.........'], ink);
+}));
+
+// 🐇 Binky: a white bunny mid-hop, legs stretched out
+ITEM_ICONS.hopBunny = item(() => render([
+  { id: 'body', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: (x, y) => ell(17, 17, 9, 6, -0.25)(x, y) || ell(26.6, 14, 2.6, 2.4)(x, y) },
+  { id: 'legB', ramp: 'wfurS', shade: { hi: -9, lo: 9 }, test: strip([[22, 20], [29, 24]], 1.4) },
+  { id: 'legF', ramp: 'wfurS', shade: { hi: -9, lo: 9 }, test: strip([[10, 20], [4, 23]], 1.2) },
+  { id: 'head', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: ell(9.6, 12.4, 5.4, 4.8) },
+  { id: 'ear', ramp: 'wfur', lineColor: 'wfurS', test: ell(12.6, 5.6, 1.8, 5, 0.6) },
+  { id: 'earIn', group: 'ear', ramp: 'pink', shade: { hi: -9, lo: 9 }, test: ell(12.6, 6, 0.8, 3.4, 0.6) },
+], ({ put }) => { put(7, 12, 'ink'); put(4, 13, 'pink'); }));
+
+// 👂 Gubby's Appetite: one tall bunny ear, listening
+ITEM_ICONS.ear = item(() => render([
+  { id: 'ear', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: (x, y) => ell(15, 17, 6, 13.6, 0.38)(x, y) && !ell(26, 4, 4.6, 4.6)(x, y) },
+  { id: 'earIn', ramp: 'pink', shade: { hi: -0.6, lo: 0.6 }, test: ell(15.6, 18, 2.8, 10, 0.38) },
+]));
+
+// ✨ Crunchy Snacks: three twinkling sparkles
+const sparkle = (id, cx, cy, r) => ({ id, ramp: 'sun', shade: { hi: -0.4, lo: 0.4 }, test: star(cx, cy, r, r * 0.28, 4) });
+ITEM_ICONS.sparkles = item(() => render([sparkle('s1', 12, 17, 10), sparkle('s2', 24, 8, 6), sparkle('s3', 24, 25, 4.6)]));
+
+// 🌟 Golden Harvest: a big glowing gold star
+ITEM_ICONS.star = item(() => render([
+  { id: 'glow', ramp: 'sunL', shade: { hi: -9, lo: 9 }, test: star(16, 17, 15, 7) },
+  { id: 'star', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: star(16, 17, 12.4, 5.4) },
+]));
+
+// 👑 Golden Tummy: a gold crown with red and blue gems
+ITEM_ICONS.crown = item(() => render([
+  { id: 'crown', ramp: 'gold', shade: { hi: -0.6, lo: 0.4 }, test: poly([[3, 10], [9.4, 17], [16, 6], [22.6, 17], [29, 10], [27, 26], [5, 26]]) },
+  { id: 'band', group: 'crown', ramp: 'goldS', shade: { hi: -9, lo: 9 }, test: rrect(5, 21.4, 27, 23, 0) },
+  { id: 'gem1', ramp: 'ribbon', shade: { hi: -0.3, lo: 0.4 }, test: ell(16, 17.4, 2.2, 2.2) },
+  { id: 'gem2', ramp: 'sky', shade: { hi: -0.3, lo: 0.4 }, test: ell(9.6, 19.6, 1.6, 1.6) },
+  { id: 'gem3', ramp: 'sky', shade: { hi: -0.3, lo: 0.4 }, test: ell(22.4, 19.6, 1.6, 1.6) },
+]));
+
+// 🪞 Twin Sprouts: an oval hand mirror with a shine
+ITEM_ICONS.mirror = item(() => render([
+  { id: 'handle', ramp: 'wood', shade: { hi: -9, lo: 9 }, test: strip([[16, 22], [16, 30]], 1.6) },
+  { id: 'frame', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: ell(16, 12.6, 9.4, 11) },
+  { id: 'glass', ramp: 'glass', shade: { hi: -0.5, lo: 0.5 }, test: ell(16, 12.6, 7, 8.6) },
+], ({ put }) => { for (const [x, y] of [[12, 8], [13, 7], [12, 9], [11, 10]]) put(x, y, 'glassL'); }));
+
+// 🧊 Stay Fresh: an ice cube with a bright corner
+ITEM_ICONS.ice = item(() => render([
+  { id: 'side', ramp: 'iceS', shade: { hi: -9, lo: 9 }, test: poly([[26, 9], [29, 12], [29, 27], [26, 30], [26, 9]]) },
+  { id: 'topFace', ramp: 'iceL', shade: { hi: -9, lo: 9 }, test: poly([[5, 9], [8, 4], [29, 4], [26, 9]]) },
+  { id: 'cube', ramp: 'ice', shade: { hi: -0.6, lo: 0.5 }, test: rrect(4, 9, 26, 29, 1) },
+], ({ put }) => { for (const [x, y] of [[8, 12], [9, 12], [8, 13], [8, 14]]) put(x, y, 'iceL'); }));
+
+// 🌻 Green Thumb: a sunflower on a stem
+ITEM_ICONS.sunflower = item(() => render([
+  { id: 'stem', ramp: 'leafS', shade: { hi: -9, lo: 9 }, test: strip([[16, 18], [16, 30]], 1.1) },
+  { id: 'leaf', ramp: 'leaf', shade: { hi: -0.5, lo: 0.5 }, test: ell(21, 25, 4.4, 2, -0.5) },
+  { id: 'petals', ramp: 'sun', shade: { hi: -0.5, lo: 0.4 }, test: star(16, 12, 11, 6.4, 10) },
+  { id: 'middle', ramp: 'wood', shade: { hi: -0.4, lo: 0.4 }, test: ell(16, 12, 4.6, 4.6) },
+], ({ put }) => { for (const [x, y] of [[15, 11], [17, 13], [14, 13], [17, 10]]) put(x, y, 'woodS'); }));
+
+// 🌷 Spring Bloom: a pink tulip on a stem
+ITEM_ICONS.tulip = item(() => render([
+  { id: 'stem', ramp: 'leafS', shade: { hi: -9, lo: 9 }, test: strip([[16, 15], [16, 30]], 1.1) },
+  { id: 'leafL', ramp: 'leaf', shade: { hi: -0.5, lo: 0.5 }, test: ell(11, 23, 2.4, 6, -0.4) },
+  { id: 'leafR', ramp: 'leaf', shade: { hi: -0.5, lo: 0.5 }, test: ell(21, 24, 2.4, 6, 0.4) },
+  { id: 'bloom', ramp: 'pink', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => ell(16, 11, 7, 7)(x, y) && !(y < 9 && Math.abs(x - 16) < 1.2) && !(y < 7 && Math.abs(Math.abs(x - 16) - 4) < 1) },
+]));
+
+// 💨 Zoomies: three puffs of wind
+ITEM_ICONS.dash = item(() => render([
+  { id: 'p1', ramp: 'cloud', shade: { hi: -0.5, lo: 0.5 }, test: ell(21, 11, 7, 4.4) },
+  { id: 'p2', ramp: 'cloud', shade: { hi: -0.5, lo: 0.5 }, test: ell(13, 18, 8, 4.8) },
+  { id: 'p3', ramp: 'cloud', shade: { hi: -0.5, lo: 0.5 }, test: ell(22, 24, 6, 3.6) },
+  { id: 'l1', ramp: 'cloudS', shade: { hi: -9, lo: 9 }, test: strip([[2, 11], [12, 11]], 0.7) },
+  { id: 'l2', ramp: 'cloudS', shade: { hi: -9, lo: 9 }, test: strip([[25, 18], [30, 18]], 0.7) },
+]));
+
+// 🍼 Hungry Babies: a baby bottle with milk and a pink nipple
+ITEM_ICONS.bottle = item(() => render([
+  { id: 'teat', ramp: 'pink', shade: { hi: -0.5, lo: 0.5 }, test: (x, y) => ell(16, 6, 2.6, 3.6)(x, y) || rrect(12, 8, 20, 11, 1)(x, y) },
+  { id: 'bottle', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: rrect(9.6, 10.6, 22.4, 29, 2.4) },
+  { id: 'milk', ramp: 'white', shade: { hi: -0.6, lo: 0.5 }, test: rrect(10.6, 16, 21.4, 28, 1.8) },
+], ({ put }) => { for (const y of [14, 18, 22, 26]) for (let x = 19; x <= 21; x++) put(x, y, 'skyS'); }));
+
+// 🏠 Big Family: a little house with a red roof
+ITEM_ICONS.house = item(() => render([
+  { id: 'roof', ramp: 'ribbon', shade: { hi: -0.6, lo: 0.4 }, test: poly([[2, 15], [16, 3], [30, 15]]) },
+  { id: 'wall', ramp: 'paper', shade: { hi: -0.7, lo: 0.4 }, test: rrect(6, 14, 26, 29, 0) },
+  { id: 'door', ramp: 'wood', shade: { hi: -0.6, lo: 0.4 }, test: rrect(13.4, 20, 18.6, 29, 0.4) },
+  { id: 'window', ramp: 'glass', shade: { hi: -0.6, lo: 0.4 }, test: rrect(20.6, 17.6, 24.4, 21.6, 0.2) },
+  { id: 'chimney', ramp: 'brick', shade: { hi: -9, lo: 9 }, test: rrect(21, 4, 24, 10, 0) },
+]));
+
+// 🏷️ Adoption Sale: a price tag on a string
+ITEM_ICONS.tag = item(() => render([
+  { id: 'string', ramp: 'woodS', shade: { hi: -9, lo: 9 }, test: strip([[24, 8], [29, 3]], 0.6) },
+  { id: 'tag', ramp: 'paper', shade: { hi: -0.6, lo: 0.4 }, test: poly([[3, 17], [15, 5], [27, 5], [27, 17], [15, 29]]) },
+  { id: 'hole', ramp: 'ink', shade: { hi: -9, lo: 9 }, test: ell(22.6, 9.4, 1.6, 1.6) },
+], ({ put }) => { stamp(put, 12, 13, ['.kkk', 'k.k.', '.kk.', '..kk', 'kkk.', '.k..'], { k: 'ribbonS' }); }));
+
+// 😋 Quick Nibbles: a yellow face with closed happy eyes and its tongue out
+ITEM_ICONS.yum = item(() => render(yellowFace([
+  { id: 'tongue', ramp: 'pink', shade: { hi: -0.5, lo: 0.5 }, test: ell(19, 22.4, 3, 3.2) },
+]), ({ put }) => {
+  stamp(put, 9, 12, ['.kk.', 'k..k'], ink); stamp(put, 19, 12, ['.kk.', 'k..k'], ink);
+  stamp(put, 11, 19, ['k.......k', '.kkkkkkk.'], ink);
+}));
+
+// 🦸 Brave Babies: a little bunny head in a blue mask with a red cape behind it
+ITEM_ICONS.hero = item(() => render([
+  { id: 'cape', ramp: 'ribbon', shade: { hi: -0.6, lo: 0.4 }, test: poly([[8, 14], [24, 14], [30, 30], [2, 30]]) },
+  { id: 'earL', ramp: 'wfur', lineColor: 'wfurS', test: ell(12, 6, 2.2, 5, -0.2) },
+  { id: 'earR', ramp: 'wfur', lineColor: 'wfurS', test: ell(20, 6, 2.2, 5, 0.2) },
+  { id: 'head', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: ell(16, 15, 8.6, 7.4) },
+  { id: 'mask', ramp: 'hero', shade: { hi: -9, lo: 9 }, test: (x, y) => rrect(8, 12, 24, 16, 1.6)(x, y) },
+], ({ put }) => { put(12, 14, 'white'); put(13, 14, 'white'); put(19, 14, 'white'); put(20, 14, 'white'); stamp(put, 13, 18, ['k....k', '.kkkk.'], ink); }));
+
+// 👃 Clover Sniffers: a pink bunny nose with whiskers
+ITEM_ICONS.nose = item(() => render([
+  { id: 'muzzle', ramp: 'wfur', shade: { hi: -0.6, lo: 0.5 }, test: (x, y) => ell(11.6, 19, 7, 6)(x, y) || ell(20.4, 19, 7, 6)(x, y) },
+  { id: 'nose', ramp: 'pink', shade: { hi: -0.5, lo: 0.4 }, test: poly([[11, 11], [21, 11], [16, 17]]) },
+], ({ put }) => {
+  for (const [x0, y0, x1, y1] of [[1, 15, 7, 17], [1, 21, 7, 20], [31, 15, 25, 17], [31, 21, 25, 20]]) line(put, x0, y0, x1, y1, 'ink');
+  line(put, 16, 18, 16, 21, 'ink');
+}));
+
+// 🔍 Four-Leaf Luck: a magnifying glass over a tiny clover
+ITEM_ICONS.magnifier = item(() => render([
+  { id: 'handle', ramp: 'wood', shade: { hi: -9, lo: 9 }, test: strip([[20, 20], [29, 29]], 2) },
+  { id: 'rim', ramp: 'steel', shade: { hi: -0.5, lo: 0.4 }, test: ell(13, 13, 10.6, 10.6) },
+  { id: 'lens', ramp: 'glass', shade: { hi: -0.6, lo: 0.6 }, test: ell(13, 13, 8, 8) },
+], ({ put }) => {
+  stamp(put, 10, 10, ['.cc.cc', 'cccccc', '.cccc.', 'cccccc', '.cc.cc', '....c.'], { c: 'clover' });
+  for (const [x, y] of [[8, 9], [9, 8]]) put(x, y, 'glassL');
+}));
+
+// 🧿 Clover Charm: a blue eye charm on a little loop
+ITEM_ICONS.charm = item(() => render([
+  { id: 'loop', ramp: 'gold', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(16, 4, 2.6, 2.6)(x, y) && !ell(16, 4, 1.2, 1.2)(x, y) },
+  { id: 'c1', ramp: 'skyS', shade: { hi: -9, lo: 9 }, test: ell(16, 18, 12, 12) },
+  { id: 'c2', ramp: 'white', shade: { hi: -9, lo: 9 }, test: ell(16, 18, 8, 8) },
+  { id: 'c3', ramp: 'sky', shade: { hi: -9, lo: 9 }, test: ell(16, 18, 5, 5) },
+  { id: 'c4', ramp: 'ink', shade: { hi: -9, lo: 9 }, test: ell(16, 18, 2.4, 2.4) },
+], ({ put }) => { put(10, 12, 'skyL'); put(11, 11, 'skyL'); }));
+
+// 🧚 Fairy Friend: a tiny pink fairy with glassy wings and a sparkle
+ITEM_ICONS.fairy = item(() => render([
+  { id: 'wingL', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(8, 12, 6, 4.6, -0.5)(x, y) || ell(9, 20, 4.4, 3, 0.4)(x, y) },
+  { id: 'wingR', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(24, 12, 6, 4.6, 0.5)(x, y) || ell(23, 20, 4.4, 3, -0.4)(x, y) },
+  { id: 'dress', ramp: 'pink', shade: { hi: -0.5, lo: 0.4 }, test: poly([[16, 13], [21, 25], [11, 25]]) },
+  { id: 'head', ramp: 'skin', shade: { hi: -0.5, lo: 0.5 }, test: ell(16, 10, 3.6, 3.6) },
+  { id: 'wand', ramp: 'woodS', shade: { hi: -9, lo: 9 }, test: strip([[20, 16], [26, 6]], 0.5) },
+  { id: 'spark', ramp: 'sun', shade: { hi: -9, lo: 9 }, test: star(26.6, 5, 3.4, 1, 4) },
+]));
+
+// 💫 Fairy Dust: a spinning star with a swoosh trail
+ITEM_ICONS.dizzy = item(() => render([
+  { id: 'trail', ramp: 'sunS', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(14, 18, 12, 8, -0.3)(x, y) && !ell(14, 18, 10, 6.2, -0.3)(x, y) && x < 18 },
+  { id: 'star', ramp: 'sun', shade: { hi: -0.5, lo: 0.4 }, test: star(22, 10, 8, 3.4) },
+]));
+
+// 🌀 Snack Magnet: a red horseshoe magnet with silver tips
+ITEM_ICONS.magnet = item(() => render([
+  { id: 'magnet', ramp: 'ribbon', shade: { hi: -0.6, lo: 0.4 }, test: (x, y) => (ell(16, 14, 12, 11)(x, y) && !ell(16, 14, 6, 5.4)(x, y) && y < 19) || rrect(4, 14, 10, 24, 0)(x, y) || rrect(22, 14, 28, 24, 0)(x, y) },
+  { id: 'tipL', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: rrect(4, 24, 10, 29, 0) },
+  { id: 'tipR', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: rrect(22, 24, 28, 29, 0) },
+]));
+
+// 🌈 Clover Rain: a rainbow arc between two clouds
+ITEM_ICONS.rainbow = item(() => {
+  const band = (r0, r1) => (x, y) => { const d = Math.hypot(x - 16, y - 24); return d >= r0 && d < r1 && y < 24; };
+  return render([
+    { id: 'red', group: 'arc', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: band(12, 15) },
+    { id: 'yellow', group: 'arc', ramp: 'sun', shade: { hi: -9, lo: 9 }, test: band(9, 12) },
+    { id: 'green', group: 'arc', ramp: 'clover', shade: { hi: -9, lo: 9 }, test: band(6, 9) },
+    { id: 'cloudL', ramp: 'cloud', shade: { hi: -0.5, lo: 0.5 }, test: (x, y) => ell(5, 24, 5, 3.4)(x, y) || ell(8, 21.6, 3.4, 3)(x, y) },
+    { id: 'cloudR', ramp: 'cloud', shade: { hi: -0.5, lo: 0.5 }, test: (x, y) => ell(27, 24, 5, 3.4)(x, y) || ell(24, 21.6, 3.4, 3)(x, y) },
+  ]);
+});
+
+// 🤖 Bonder: a grey robot head with a visor and an antenna
+ITEM_ICONS.robot = item(() => render([
+  { id: 'antenna', ramp: 'steel', shade: { hi: -9, lo: 9 }, test: strip([[16, 9], [16, 3]], 0.7) },
+  { id: 'ball', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: ell(16, 2.6, 1.6, 1.6) },
+  { id: 'head', ramp: 'stone', shade: { hi: -0.6, lo: 0.4 }, test: (x, y) => rrect(7, 8, 25, 29, 3)(x, y) },
+  { id: 'visor', ramp: 'ink', shade: { hi: -9, lo: 9 }, test: rrect(8.4, 13, 23.6, 19, 2.6) },
+  { id: 'eyeL', ramp: 'paper', shade: { hi: -9, lo: 9 }, test: rrect(10, 14, 15, 18, 1.4) },
+  { id: 'eyeR', ramp: 'paper', shade: { hi: -9, lo: 9 }, test: rrect(17, 14, 22, 18, 1.4) },
+  { id: 'mouth', ramp: 'paperS', shade: { hi: -9, lo: 9 }, test: rrect(10, 22, 22, 26, 1) },
+], ({ put }) => {
+  put(12, 16, 'ink'); put(19, 16, 'ink');
+  for (const x of [13, 16, 19]) for (let y = 22; y <= 26; y++) put(x, y, 'stoneS');
+}));
+
+// 👄 Bigger Appetite: a wide-open mouth with big buck teeth
+ITEM_ICONS.mouth = item(() => render([
+  { id: 'lips', ramp: 'berry', shade: { hi: -0.5, lo: 0.4 }, test: ell(16, 16, 13, 9) },
+  { id: 'inside', ramp: 'brickS', shade: { hi: -9, lo: 9 }, test: ell(16, 17, 9.6, 5.6) },
+  { id: 'teeth', ramp: 'white', shade: { hi: -9, lo: 9 }, test: (x, y) => rrect(11, 11.6, 21, 17, 0.6)(x, y) },
+], ({ put }) => { for (let y = 12; y <= 16; y++) put(16, y, 'cloudS'); }));
+
+// 🧂 Tastier Snacks: a salt shaker with holes in the top
+ITEM_ICONS.salt = item(() => render([
+  { id: 'cap', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: (x, y) => ell(16, 8, 7, 4)(x, y) || rrect(9, 8, 23, 11, 0)(x, y) },
+  { id: 'jar', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: rrect(8, 11, 24, 29, 2) },
+  { id: 'salt', ramp: 'white', shade: { hi: -0.6, lo: 0.5 }, test: rrect(9, 16, 23, 28, 1.6) },
+], ({ put }) => { for (const [x, y] of [[13, 6], [16, 5], [19, 6], [16, 8]]) put(x, y, 'ink'); }));
+
+// 🤝 An Offer You Can't Refuse: a handshake. A yellow hand from a slate sleeve clasps a white bunny paw from a sage one.
+ITEM_ICONS.handshake = item(() => render([
+  { id: 'sleeveL', ramp: 'coat', shade: { hi: -0.5, lo: 0.4 }, test: rrect(0, 12, 7.4, 25, 0.6) },
+  { id: 'sleeveR', ramp: 'shirt', shade: { hi: -0.5, lo: 0.4 }, test: rrect(24.6, 10, 32, 23, 0.6) },
+  { id: 'handL', ramp: 'skin', shade: { hi: -0.5, lo: 0.4 }, test: poly([[6.6, 13], [19, 13], [23, 18], [19.6, 24.6], [6.6, 24.6]]) },
+  { id: 'paw', ramp: 'wfur', shade: { hi: -0.5, lo: 0.45 }, test: rrect(11.4, 9.4, 25.4, 18.6, 3.6) },
+  { id: 'thumb', ramp: 'skin', shade: { hi: -0.5, lo: 0.5 }, test: ell(14.6, 19.4, 3.6, 2.4, -0.3) },
+], ({ put }) => { for (const x of [15, 18, 21]) for (let y = 11; y <= 16; y++) put(x, y, 'wfurS'); }));
+
+// 🤐 Omertà: a yellow face with a zipped-shut mouth
+ITEM_ICONS.zipped = item(() => render(yellowFace(), ({ put }) => {
+  stamp(put, 10, 11, ['kk', 'kk'], ink); stamp(put, 20, 11, ['kk', 'kk'], ink);
+  for (let x = 8; x <= 24; x++) put(x, 20, 'ink');
+  for (let x = 9; x <= 23; x += 2) { put(x, 19, 'steelL'); put(x, 21, 'steelL'); }
+  stamp(put, 23, 19, ['gg', 'gg', '.g'], { g: 'gold' });
+}));
+
+// 🎖️ Made Bunny: a medal hanging from a striped ribbon
+ITEM_ICONS.medal = item(() => render([
+  { id: 'ribbon', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: poly([[9, 1], [23, 1], [19, 14], [13, 14]]) },
+  { id: 'medal', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: ell(16, 21, 8.4, 8.4) },
+  { id: 'starM', ramp: 'goldL', shade: { hi: -9, lo: 9 }, test: star(16, 21.4, 5, 2.2) },
+], ({ put }) => { for (let y = 1; y <= 12; y++) put(16, y, 'white'); }));
+
+// 🌹 The Godfather: a single red rose with a leafy stem
+ITEM_ICONS.rose = item(() => render([
+  { id: 'stem', ramp: 'leafS', shade: { hi: -9, lo: 9 }, test: strip([[15, 14], [17, 30]], 1) },
+  { id: 'leaf', ramp: 'leaf', shade: { hi: -0.5, lo: 0.5 }, test: ell(21, 22, 4.4, 2, -0.6) },
+  { id: 'bloom', ramp: 'berry', shade: { hi: -0.5, lo: 0.4 }, test: blob(15, 10, 8, 7.6, 0.08, 6, 0.6) },
+], ({ put }) => { for (const [x0, y0, x1, y1] of [[11, 9, 15, 6], [15, 6, 19, 10], [13, 12, 18, 12]]) line(put, x0, y0, x1, y1, 'berryS'); }));
+
+// 🗝️ Inside Job: an old-fashioned gold key
+ITEM_ICONS.key = item(() => render([
+  { id: 'bow', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => ell(9, 9, 6.6, 6.6)(x, y) && !ell(9, 9, 2.6, 2.6)(x, y) },
+  { id: 'shaft', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: strip([[13, 13], [28, 28]], 1.8) },
+  { id: 'teeth', ramp: 'goldS', shade: { hi: -9, lo: 9 }, test: (x, y) => strip([[22, 22], [19, 25]], 1.3)(x, y) || strip([[26, 26], [23, 29]], 1.3)(x, y) },
+]));
+
+// 🤫 Hush Money: a yellow face with a finger to its lips
+ITEM_ICONS.shush = item(() => render(yellowFace([
+  { id: 'finger', ramp: 'skinS', lineColor: 'skinD', shade: { hi: -9, lo: 9 }, test: rrect(14.2, 15, 18.2, 28, 2) },
+]), ({ put }) => {
+  stamp(put, 9, 11, ['kkk'], ink); stamp(put, 20, 11, ['kkk'], ink);
+  stamp(put, 11, 20, ['kkk'], ink); stamp(put, 19, 20, ['kkk'], ink);
+}));
+
+// 🐾 Rabbit's Foot: two little paw prints
+const pawPrint = (p, cx, cy) => [
+  { id: p + 'pad', ramp: 'pink', shade: { hi: -0.5, lo: 0.5 }, test: ell(cx, cy + 2.4, 3.6, 3) },
+  ...[[-3.4, -1.6], [-1.2, -3.6], [1.2, -3.6], [3.4, -1.6]].map(([dx, dy], i) =>
+    ({ id: p + 'toe' + i, ramp: 'pink', shade: { hi: -0.5, lo: 0.5 }, test: ell(cx + dx, cy + dy, 1.4, 1.6) })),
+];
+ITEM_ICONS.paws = item(() => render([...pawPrint('a', 10, 21), ...pawPrint('b', 22, 9)]));
+
+// 🌧️ Carrot Rain: a grey cloud with falling raindrops
+ITEM_ICONS.rain = item(() => render([
+  { id: 'cloud', ramp: 'stone', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => ell(16, 13, 12, 6)(x, y) || ell(11, 9, 6, 5)(x, y) || ell(20, 8, 6.6, 6)(x, y) },
+  ...[[8, 23], [16, 26], [24, 23], [12, 28.6], [20, 28.6]].map(([x, y], i) =>
+    ({ id: 'drop' + i, ramp: 'sky', shade: { hi: -9, lo: 9 }, test: strip([[x + 1, y - 2], [x, y]], 0.7) })),
+]));
+
+Object.assign(ICONS, ITEM_ICONS);
+
+// =====================================================================
+// page
+// =====================================================================
+function toCanvas(pixels) {
+  const c = document.createElement('canvas'); c.width = S; c.height = S;
+  const x = c.getContext('2d');
+  pixels.forEach((k, i) => { if (k) { x.fillStyle = PAL[k]; x.fillRect(i % S, (i / S) | 0, 1, 1); } });
+  return c;
+}
+function scaled(src, scale, cls) {
+  const c = document.createElement('canvas'); c.width = S * scale; c.height = S * scale; c.className = cls;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+// An icon is either a function (static) or { frames, ms, draw(f) } (animated).
+// Saves <name>.png (frame 0, the static icon) and, if animated, <name>-idle.png (all frames in a row).
+const post = (file, canvas) => new Promise(res => canvas.toBlob(async b =>
+  res((await fetch(`/save/${file}`, { method: 'POST', body: b })).ok), 'image/png'));
+
+const built = {};
+for (const [name, def] of Object.entries(ICONS)) {
+  const icon = typeof def === 'function' ? { frames: 1, ms: 0, draw: def } : def;
+  S = icon.size || 64; K = S / (icon.layout || 64); [OX, OY] = icon.offset || [0, 0];
+  const frames = [...Array(icon.frames)].map((_, f) => toCanvas(icon.draw(f)));
+  const strip = document.createElement('canvas'); strip.width = S * frames.length; strip.height = S;
+  frames.forEach((c, i) => strip.getContext('2d').drawImage(c, i * S, 0));
+  built[name] = { icon, frames, strip };
+
+  const row = document.createElement('div'); row.className = 'row';
+  const big = document.createElement('div'); big.className = 'card';
+  big.innerHTML = `<h2>${name}, ${S}×${S}${icon.frames > 1 ? `, idle ${icon.frames} frames` : ''} (6×)</h2>`;
+  const bigC = scaled(frames[0], 6, 'checker'); big.appendChild(bigC);
+  const small = document.createElement('div'); small.className = 'card';
+  small.innerHTML = `<h2>In game (1× and 2×, on the path and grass)</h2>`;
+  const fl = document.createElement('div'); fl.className = 'flex';
+  const smalls = [scaled(frames[0], 1, 'path'), scaled(frames[0], 2, 'path'), scaled(frames[0], 1, 'field')];
+  fl.append(...smalls); small.appendChild(fl);
+  row.append(big, small);
+
+  if (icon.frames > 1) {
+    let f = 0;
+    setInterval(() => {
+      f = (f + 1) % frames.length;
+      for (const c of [bigC, ...smalls]) {
+        const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+        x.clearRect(0, 0, c.width, c.height); x.drawImage(frames[f], 0, 0, c.width, c.height);
+      }
+    }, icon.ms);
+    const st = document.createElement('div'); st.className = 'card';
+    st.innerHTML = `<h2>Frames (2×)</h2>`;
+    const sc = document.createElement('canvas'); sc.width = strip.width * 2; sc.height = S * 2; sc.className = 'checker';
+    const sx = sc.getContext('2d'); sx.imageSmoothingEnabled = false; sx.drawImage(strip, 0, 0, sc.width, sc.height);
+    st.appendChild(sc);
+    const r2 = document.createElement('div'); r2.className = 'row'; r2.appendChild(st);
+    document.getElementById('icons').append(row, r2);
+  } else {
+    document.getElementById('icons').appendChild(row);
+  }
+
+  const exp = document.createElement('div'); exp.className = 'card';
+  exp.innerHTML = `<h2>Export</h2><button>Save</button> <span style="color:#7ee0a1"></span>`;
+  exp.querySelector('button').onclick = async () =>
+    exp.querySelector('span').textContent = (await saveIcon(name)) ? 'Saved' : 'Save failed';
+  row.appendChild(exp);
+}
+window.saveIcon = async name => {
+  const b = built[name];
+  const ok1 = await post(`${name}.png`, b.frames[0]);
+  const ok2 = b.icon.frames > 1 ? await post(`${name}-idle.png`, b.strip) : true;
+  return ok1 && ok2;
+};
+
+// ---------- combined sheets: one row per variant, each row is that variant's idle frames ----------
+const SHEETS = {
+  'farmer-sheet': ['mafioso', 'caporegime', 'contractee', 'consigliere', 'soldier'],   // rows 0-4
+};
+const sheets = {};
+for (const [file, names] of Object.entries(SHEETS)) {
+  const rows = names.map(n => built[n]);
+  const fw = rows[0].frames[0].width, cols = Math.max(...rows.map(r => r.frames.length));
+  const c = document.createElement('canvas'); c.width = fw * cols; c.height = fw * rows.length;
+  rows.forEach((r, i) => c.getContext('2d').drawImage(r.strip, 0, i * fw));
+  const meta = {
+    image: `${file}.png`, frameWidth: fw, frameHeight: fw,
+    rows: Object.fromEntries(names.map((n, i) => [n, { row: i, frames: rows[i].frames.length, ms: rows[i].icon.ms }])),
+  };
+  sheets[file] = { canvas: c, meta };
+
+  const row = document.createElement('div'); row.className = 'row';
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = `<h2>${file}.png: ${names.length} rows × ${cols} frames, ${fw}×${fw} each (2×)</h2>`;
+  const big = document.createElement('canvas'); big.width = c.width * 2; big.height = c.height * 2; big.className = 'checker';
+  const bx = big.getContext('2d'); bx.imageSmoothingEnabled = false; bx.drawImage(c, 0, 0, big.width, big.height);
+  const exp = document.createElement('div');
+  exp.innerHTML = `<button>Save ${file}.png + .json</button> <span style="color:#7ee0a1"></span>`;
+  exp.querySelector('button').onclick = async () =>
+    exp.querySelector('span').textContent = (await saveSheet(file)) ? 'Saved' : 'Save failed';
+  card.append(big, exp); row.appendChild(card);
+  document.getElementById('icons').prepend(row);
+}
+window.saveSheet = async file => {
+  const { canvas, meta } = sheets[file];
+  const ok1 = await post(`${file}.png`, canvas);
+  const ok2 = (await fetch(`/save/${file}.json`, { method: 'POST', body: JSON.stringify(meta, null, 2) })).ok;
+  return ok1 && ok2;
+};
+
+// ---------- atlases: still icons packed into a grid, with a json index of where each one is ----------
+const ATLASES = {
+  'items-sheet': { names: Object.keys(ITEM_ICONS), cols: 8 },
+};
+const atlases = {};
+for (const [file, { names, cols }] of Object.entries(ATLASES)) {
+  const fw = built[names[0]].frames[0].width, rows = Math.ceil(names.length / cols);
+  const c = document.createElement('canvas'); c.width = fw * cols; c.height = fw * rows;
+  const icons = {};
+  names.forEach((n, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    c.getContext('2d').drawImage(built[n].frames[0], col * fw, row * fw);
+    icons[n] = { col, row };
+  });
+  atlases[file] = { canvas: c, meta: { image: `${file}.png`, frameWidth: fw, frameHeight: fw, icons } };
+
+  const row = document.createElement('div'); row.className = 'row';
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = `<h2>${file}.png: ${names.length} icons, ${fw}×${fw} each (4×, and 1× on the grass)</h2>`;
+  const big = document.createElement('canvas'); big.width = c.width * 4; big.height = c.height * 4; big.className = 'checker';
+  const bx = big.getContext('2d'); bx.imageSmoothingEnabled = false; bx.drawImage(c, 0, 0, big.width, big.height);
+  const small = document.createElement('canvas'); small.width = c.width; small.height = c.height; small.className = 'field';
+  small.getContext('2d').drawImage(c, 0, 0);
+  const exp = document.createElement('div');
+  exp.innerHTML = `<button>Save ${file}.png + .json</button> <span style="color:#7ee0a1"></span>`;
+  exp.querySelector('button').onclick = async () =>
+    exp.querySelector('span').textContent = (await saveAtlas(file)) ? 'Saved' : 'Save failed';
+  card.append(big, small, exp); row.appendChild(card);
+  document.getElementById('icons').prepend(row);
+}
+window.saveAtlas = async file => {
+  const { canvas, meta } = atlases[file];
+  const ok1 = await post(`${file}.png`, canvas);
+  const ok2 = (await fetch(`/save/${file}.json`, { method: 'POST', body: JSON.stringify(meta, null, 2) })).ok;
+  return ok1 && ok2;
+};
+</script>
+</body>
+</html>
