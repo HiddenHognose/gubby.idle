@@ -1216,6 +1216,7 @@ const randGrassY = (m = 20) => rand(GRASS.y0 + m, GRASS.y1 - m);
 
 const BED_TYPES = SOURCES.filter(s => s.zone === 'bed').map(s => s.id);
 const PAD_TYPES = SOURCES.filter(s => s.zone === 'pad').map(s => s.id);
+const PATH_TYPES = SOURCES.filter(s => s.zone === 'path').map(s => s.id);
 
 // Where unit k of source s stands right now. Beds and the pad never move, so those spots are worked out
 // once per layout; path walkers update one reused object. (Callers read x/y straight away and never keep
@@ -1257,7 +1258,16 @@ function updateMovers(dt) {
       arr.push({ x: rand(40, W - 40), tx: rand(40, W - 40), wait: rand(0, 2), facingRight: Math.random() < 0.5, speed: (s.speed ? rand(s.speed * 0.9, s.speed * 1.1) : rand(55, 85)) * (CALM ? 0.5 : 1) });
     }
     arr.length = n;
-    for (const m of arr) {
+    for (let k = 0; k < arr.length; k++) {
+      const m = arr[k];
+      if (CALM) {
+        // Calm: everyone on the path stands still in an evenly spaced spot of their own.
+        const slots = PATH_TYPES.length * SPRITES_PER_TYPE;
+        const slot = PATH_TYPES.indexOf(s.id) + k * PATH_TYPES.length;
+        m.x = 40 + (W - 80) * (slot + 0.5) / slots;
+        m.moving = false;
+        continue;
+      }
       if (s.move === 'loop') {
         m.x += m.speed * dt;
         m.facingRight = true;
@@ -1438,6 +1448,7 @@ function updateRobot(dt) {
     pickRobotSpot();
     robot.placed = true;
   }
+  if (CALM) { robot.moving = false; return; }   // calm: Bonder stands still where he arrived
   if (robot.wait > 0) { robot.wait -= dt; robot.moving = false; return; }
   const dx = robot.tx - robot.x, dy = robot.ty - robot.y, d = Math.hypot(dx, dy);
   if (d < 2) {
@@ -1550,9 +1561,19 @@ function updateEvents(dt) {
     if (car.x > W + 60) ev.car = null;
   } else if ((ev.heistIn -= dt) <= 0) {
     const bags = E.heist.bags + 3 * lvl('insideJob');
-    ev.car = { x: -60, gap: W / (bags + 1), nextDrop: W / (bags + 1) };
     ev.heistIn = rand(...E.heist.every);
     toast(`${E.heist.car} ${E.heist.shout}`, 2500);
+    if (CALM) {
+      // Calm: no car racing past; the bags just appear on the grass (spawnItem fades them in).
+      for (let b = 1; b <= bags; b++) {
+        spawnItem({ x: W * b / (bags + 1), y: LAYOUT.path / 2 }, {
+          kind: 'main', icon: E.heist.bag, value: Math.max(50, incomeRate() * 1.5),
+          clovers: cloversPerSnack('sprout') * 3, golden: false, size: 32, force: true,
+        });
+      }
+    } else {
+      ev.car = { x: -60, gap: W / (bags + 1), nextDrop: W / (bags + 1) };
+    }
   }
 
   // Carrot Rain (skill): carrots fall straight down onto the grass for a few seconds.
@@ -1725,7 +1746,7 @@ function update(dt) {
     } else {
       it.age += dt;
       if (it.age > lifetime && !(it.golden && omerta)) { it.dead = true; continue; }   // Omertà: golden snacks stay
-      if (magnet && mouse.inside) {
+      if (magnet && mouse.inside && !CALM) {   // calm: snacks don't slide toward Gubby
         const dx = mouse.x - it.x, dy = mouse.y - it.y, d = Math.hypot(dx, dy);
         if (d < r + magnet && d > 1) { it.x += (dx / d) * 110 * dt; it.y += (dy / d) * 110 * dt; }
       }
@@ -2072,8 +2093,9 @@ function draw() {
   drawEvents(now);
 
   // Helpers (baby gubbies), sorted in place so lower ones draw on top
-  helpers.sort((a, b) => a.y - b.y);
-  for (const h of helpers) drawGubby(h.x, h.y, HELPER_SCALE, h.anim);
+  // Calm mode hides them: lots of little hopping bunnies is a lot of motion. They still eat.
+  if (!CALM) helpers.sort((a, b) => a.y - b.y);
+  if (!CALM) for (const h of helpers) drawGubby(h.x, h.y, HELPER_SCALE, h.anim);
 
   // Orbiters
   if (mouse.inside) {
