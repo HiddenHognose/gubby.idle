@@ -40,6 +40,8 @@
     border-bottom: 2px solid var(--panel-2);
   }
   header h1 { margin: 0; font-size: 1.6rem; color: var(--accent); white-space: nowrap; }
+  header h1 .mode-tag { display: block; font-size: 0.7rem; font-weight: 600; color: var(--muted); }
+  header button { white-space: nowrap; }
   #counters { display: flex; gap: 28px; flex: 1; flex-wrap: wrap; }
   .counter { font-size: 1.3rem; white-space: nowrap; }
   .counter.main b { color: var(--accent); }
@@ -58,15 +60,39 @@
   }
   button:hover:not(:disabled) { background: #443d68; }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
-  select {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid #4a4470;
-    border-radius: 6px;
+  button[aria-expanded="true"] { background: #443d68; }
+
+  /* Settings menu: drops down under the header, without dimming the field, so colour changes show live */
+  #settings {
+    position: fixed;
+    top: calc(var(--header-h) - 4px);
+    right: 16px;
+    z-index: 15;
+    width: min(320px, calc(100vw - 32px));
+    max-height: calc(100vh - var(--header-h) - 16px);
+    overflow-y: auto;
+    background: var(--panel);
+    border: 2px solid var(--panel-2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+  #settings.hidden { display: none; }
+  #settings h3 { margin: 10px 0 6px; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  #settings h3:first-child { margin-top: 0; }
+  #settings .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
     padding: 6px 8px;
-    font: inherit;
+    border-radius: 6px;
     cursor: pointer;
   }
+  #settings .opt:hover { background: var(--panel-2); }
+  #settings .opt input { margin: 3px 0 0; accent-color: var(--accent); cursor: pointer; }
+  #settings .opt small { display: block; color: var(--muted); font-size: 0.8rem; }
+  #settings .note { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; }
+  html.dyslexic #settings h3 { text-transform: none; letter-spacing: 0.01em; }
   button.danger { border-color: var(--danger); color: var(--danger); }
   button.dev-btn { border-style: dashed; color: var(--muted); }
   button.dev-btn.on { background: #ffb3d9; border-color: #ff6fb5; border-style: solid; color: #2a1020; font-weight: 700; }
@@ -98,6 +124,24 @@
   #news { background: #f3ead6; color: #2b2418; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-family: Georgia, "Times New Roman", serif; }
   #news .news-title { font-weight: 700; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 1px solid #2b2418; margin-bottom: 4px; }
   #news-text { font-size: 0.9rem; min-height: 2.6em; transition: opacity 0.4s; }
+
+  /* ---------- Dyslexia-friendly mode (html.dyslexic, see DYSLEXIC in the script) ----------
+     OpenDyslexic everywhere, a touch more letter/word/line spacing (per British Dyslexia
+     Association guidance), no serif or ALL-CAPS text, and nothing smaller than ~13px. */
+  html.dyslexic body,
+  html.dyslexic button {
+    font-family: 'OpenDyslexic', Verdana, Arial, sans-serif;
+    letter-spacing: 0.01em;
+    word-spacing: 0.06em;
+  }
+  html.dyslexic body { line-height: 1.5; }
+  html.dyslexic .small { font-size: 0.85rem; }
+  html.dyslexic .row-btn .desc,
+  html.dyslexic .skill .s-desc,
+  html.dyslexic #tree-tip .t-desc { font-size: 0.85rem; line-height: 1.5; }
+  html.dyslexic #news { font-family: inherit; background: #fbf5e6; }
+  html.dyslexic #news .news-title { text-transform: none; letter-spacing: 0.01em; }
+  html.dyslexic #news-text { font-size: 0.9rem; line-height: 1.6; }
   .small { font-size: 0.8rem; color: var(--muted); font-weight: normal; }
 
   .row-btn {
@@ -288,11 +332,22 @@
     <div class="header-buttons">
       <button id="skills-btn" class="rare-btn">Skill Tree (T)</button>
       <button id="dev-btn" class="dev-btn" title="Infinite carrots and clovers while on">Dev Mode: OFF</button>
-      <select id="color-mode" title="Colorblind modes: shifts the colours so they're easier to tell apart"></select>
+      <button id="settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings">Settings</button>
       <button id="save-btn">Save</button>
       <button id="reset-btn" class="danger">Reset</button>
     </div>
   </header>
+
+  <div id="settings" class="hidden" role="dialog" aria-label="Settings">
+    <h3>Colors</h3>
+    <div id="color-modes" role="radiogroup" aria-label="Colorblind mode"></div>
+    <h3>Version</h3>
+    <label class="opt"><input type="checkbox" id="opt-calm">
+      <span>Calm<small>Less motion, for vertigo</small></span></label>
+    <label class="opt"><input type="checkbox" id="opt-dyslexic">
+      <span>Dyslexia-friendly<small>Easier-to-read font and spacing</small></span></label>
+    <p class="note">Each version keeps its own save. Switching saves your game, then reloads.</p>
+  </div>
 
   <main>
     <div id="field-wrap">
@@ -519,11 +574,47 @@ const THEME = {
 // save and tones motion down: snacks fade in where they land instead of flying across the
 // screen, nothing spins, bobs, pulses or blinks, floating numbers don't drift, fairies hold
 // still, vehicles move slower, and Binky has no expanding ring.
-const CALM = new URLSearchParams(location.search).has('calm');
-const SAVE_KEY = THEME.saveKey + (CALM ? 'Calm' : '');
-if (CALM) {
-  document.title = 'Gubby Idle (Calm)';
-  document.getElementById('title').textContent = 'Gubby Idle (Calm)';
+//
+// Dyslexia-friendly mode: open Dyslexic-gubby.html (or index.html?dyslexic). Also keeps its own
+// save. Uses the OpenDyslexic font everywhere (falling back to Verdana/Arial offline), with a
+// little extra letter, word and line spacing, and no serif or ALL-CAPS text.
+const MODE = new URLSearchParams(location.search);
+const CALM = MODE.has('calm');
+const DYSLEXIC = MODE.has('dyslexic');
+const SAVE_KEY = THEME.saveKey + (CALM ? 'Calm' : '') + (DYSLEXIC ? 'Dyslexic' : '');
+{
+  // The dyslexia-friendly version has its own name; calm mode shows as a tag under the title.
+  const name = DYSLEXIC ? 'Dyslexic Gubby' : 'Gubby Idle';
+  document.getElementById('title').textContent = name;
+  document.title = name;
+  const labels = [CALM && 'Calm'].filter(Boolean);
+  if (labels.length) {
+    document.title = `${name} (${labels.join(', ')})`;
+    // Keep the big title short; the mode goes in a small tag underneath it.
+    const tag = document.createElement('span');
+    tag.className = 'mode-tag';
+    tag.textContent = labels.join(' · ');
+    document.getElementById('title').appendChild(tag);
+  }
+}
+if (DYSLEXIC) {
+  document.documentElement.classList.add('dyslexic');
+  // The font ships with the game in fonts/opendyslexic.js (works offline and from file://).
+  // If that file is missing, fall back to downloading it from the internet.
+  const cdn = (w) => `https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic/files/opendyslexic-latin-${w}-normal.woff2`;
+  const useFont = (src) => {
+    const style = document.createElement('style');
+    style.textContent = [400, 700].map(w =>
+      `@font-face { font-family: 'OpenDyslexic'; font-weight: ${w}; font-display: swap; src: url(${src(w)}) format('woff2'); }`).join('\n');
+    document.head.appendChild(style);
+    // Redraw the cached floating numbers once the font is ready.
+    if (document.fonts) document.fonts.load('bold 18px OpenDyslexic').then(() => clearImageCaches()).catch(() => {});
+  };
+  const script = document.createElement('script');
+  script.src = 'fonts/opendyslexic.js';
+  script.onload = () => useFont(w => window.OPENDYSLEXIC[w]);
+  script.onerror = () => useFont(cdn);
+  document.head.appendChild(script);
 }
 
 // Gubby sprite sheet (sprites/gubby-sheet.png + gubby-sheet.json): 64×64 frames.
@@ -1770,7 +1861,9 @@ function drawSourceSprite(spec, x, y, size = 34) {
 // Floating "+5" numbers are pre-rendered (text + shadow) once per string/colour and
 // reused, instead of laying out text twice per number every frame.
 const textCache = new Map();
-const FLOAT_FONT = 'bold 20px "Segoe UI", sans-serif';
+const FLOAT_FONT = DYSLEXIC
+  ? 'bold 18px OpenDyslexic, Verdana, Arial, sans-serif'
+  : 'bold 20px "Segoe UI", sans-serif';
 function textImage(text, color) {
   const key = text + '|' + color;
   let img = textCache.get(key);
@@ -2542,10 +2635,35 @@ function init() {
   canvas.addEventListener('pointerdown', setMouse);
   canvas.addEventListener('pointerleave', () => { mouse.inside = false; });
 
-  const colorSel = $('color-mode');
-  for (const [id, m] of Object.entries(CB_MODES)) colorSel.add(new Option(m.label, id));
-  colorSel.value = cbMode;
-  colorSel.addEventListener('change', () => { setColorMode(colorSel.value); colorSel.blur(); });
+  // Settings menu: colorblind mode (shared by every version) and which version to play.
+  const settingsEl = $('settings'), settingsBtn = $('settings-btn');
+  const toggleSettings = (show = settingsEl.classList.contains('hidden')) => {
+    settingsEl.classList.toggle('hidden', !show);
+    settingsBtn.setAttribute('aria-expanded', show);
+  };
+  for (const [id, m] of Object.entries(CB_MODES)) {
+    const opt = document.createElement('label');
+    opt.className = 'opt';
+    const radio = document.createElement('input');
+    radio.type = 'radio'; radio.name = 'color-mode'; radio.value = id; radio.checked = id === cbMode;
+    radio.addEventListener('change', () => setColorMode(id));
+    opt.append(radio, m.label);
+    $('color-modes').appendChild(opt);
+  }
+  // Calm and dyslexia-friendly are separate versions (URL flags, own saves), so switching reloads.
+  $('opt-calm').checked = CALM;
+  $('opt-dyslexic').checked = DYSLEXIC;
+  const switchVersion = () => {
+    save();
+    const q = [$('opt-calm').checked && 'calm', $('opt-dyslexic').checked && 'dyslexic'].filter(Boolean).join('&');
+    location.search = q ? '?' + q : '';
+  };
+  $('opt-calm').addEventListener('change', switchVersion);
+  $('opt-dyslexic').addEventListener('change', switchVersion);
+  settingsBtn.addEventListener('click', () => toggleSettings());
+  document.addEventListener('pointerdown', (e) => {
+    if (!settingsEl.contains(e.target) && !settingsBtn.contains(e.target)) toggleSettings(false);
+  });
   $('skills-btn').addEventListener('click', () => toggleSkills());
   $('skills-close').addEventListener('click', () => toggleSkills(false));
   $('skills-center').addEventListener('click', centerTree);
@@ -2555,7 +2673,7 @@ function init() {
   $('dev-btn').addEventListener('click', toggleDevMode);
   document.addEventListener('keydown', (e) => {
     if ((e.key === 't' || e.key === 'T') && state.cloversUnlocked) toggleSkills();
-    if (e.key === 'Escape') toggleSkills(false);
+    if (e.key === 'Escape') { toggleSkills(false); toggleSettings(false); }
   });
 
   // Simulation runs on its own timer in small fixed steps (so it keeps going
