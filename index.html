@@ -63,7 +63,8 @@
   button[aria-expanded="true"] { background: #443d68; }
 
   /* Settings menu: drops down under the header, without dimming the field, so colour changes show live */
-  #settings {
+  #settings,
+  #stats {
     position: fixed;
     top: calc(var(--header-h) - 4px);
     right: 16px;
@@ -77,7 +78,13 @@
     padding: 12px 14px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
-  #settings.hidden { display: none; }
+  #settings.hidden, #stats.hidden { display: none; }
+  #stats h3 { margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  html.dyslexic #stats h3 { text-transform: none; letter-spacing: 0.01em; }
+  #stats table { width: 100%; border-collapse: collapse; }
+  #stats td { padding: 5px 0; border-bottom: 1px solid var(--panel-2); }
+  #stats td:last-child { text-align: right; font-weight: 700; color: var(--accent); white-space: nowrap; padding-left: 12px; }
+  #stats tr:last-child td { border-bottom: none; }
   #settings h3 { margin: 10px 0 6px; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
   #settings h3:first-child { margin-top: 0; }
   #settings .opt {
@@ -100,8 +107,10 @@
 
   main { display: flex; height: calc(100vh - var(--header-h)); }
   #field-wrap { flex: 1; position: relative; min-width: 0; }
-  #field { display: block; cursor: none; touch-action: none; }
+  #field { display: block; cursor: none; touch-action: none; position: relative; z-index: 1; }
+  #field-wrap .field-bg { position: absolute; left: 0; top: 0; pointer-events: none; }
   #hint {
+    z-index: 2;
     position: absolute;
     top: 76px; left: 50%;   /* just below the top path, on the grass */
     transform: translateX(-50%);
@@ -332,11 +341,17 @@
     <div class="header-buttons">
       <button id="skills-btn" class="rare-btn">Skill Tree (T)</button>
       <button id="dev-btn" class="dev-btn" title="Infinite carrots and clovers while on">Dev Mode: OFF</button>
+      <button id="stats-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="stats">Stats</button>
       <button id="settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings">Settings</button>
       <button id="save-btn">Save</button>
       <button id="reset-btn" class="danger">Reset</button>
     </div>
   </header>
+
+  <div id="stats" class="hidden" role="dialog" aria-label="Stats">
+    <h3>Stats</h3>
+    <table><tbody id="stats-rows"></tbody></table>
+  </div>
 
   <div id="settings" class="hidden" role="dialog" aria-label="Settings">
     <h3>Colors</h3>
@@ -346,7 +361,7 @@
       <span>Calm<small>Less motion, for vertigo</small></span></label>
     <label class="opt"><input type="checkbox" id="opt-dyslexic">
       <span>Dyslexia-friendly<small>Easier-to-read font and spacing</small></span></label>
-    <p class="note">Each version keeps its own save. Switching saves your game, then reloads.</p>
+    <p class="note">All versions share the same save. Switching saves your game, then reloads.</p>
   </div>
 
   <main>
@@ -570,18 +585,21 @@ const THEME = {
   pad:        '#a9a9a6',   // concrete pad along the bottom
 };
 
-// Calm mode (vertigo friendly): open gubby-calm.html (or index.html?calm). It keeps its own
-// save and tones motion down: snacks fade in where they land instead of flying across the
+// Calm mode (vertigo friendly): open gubby-calm.html (or index.html?calm). Tones motion
+// down: snacks fade in where they land instead of flying across the
 // screen, nothing spins, bobs, pulses or blinks, floating numbers don't drift, fairies hold
 // still, vehicles move slower, and Binky has no expanding ring.
 //
-// Dyslexia-friendly mode: open Dyslexic-gubby.html (or index.html?dyslexic). Also keeps its own
-// save. Uses the OpenDyslexic font everywhere (falling back to Verdana/Arial offline), with a
+// Dyslexia-friendly mode: open Dyslexic-gubby.html (or index.html?dyslexic). Uses the
+// bundled OpenDyslexic font everywhere (falling back to Verdana/Arial), with a
 // little extra letter, word and line spacing, and no serif or ALL-CAPS text.
 const MODE = new URLSearchParams(location.search);
 const CALM = MODE.has('calm');
 const DYSLEXIC = MODE.has('dyslexic');
-const SAVE_KEY = THEME.saveKey + (CALM ? 'Calm' : '') + (DYSLEXIC ? 'Dyslexic' : '');
+// Every version (normal, calm, dyslexic) shares this one save, so you can switch freely.
+const SAVE_KEY = THEME.saveKey;
+// Calm/dyslexic used to keep separate saves under these keys; load() adopts one if there's no main save.
+const OLD_MODE_SAVE_KEYS = ['Calm', 'Dyslexic', 'CalmDyslexic'].map(m => THEME.saveKey + m);
 {
   // The dyslexia-friendly version has its own name; calm mode shows as a tag under the title.
   const name = DYSLEXIC ? 'Dyslexic Gubby' : 'Gubby Idle';
@@ -1915,7 +1933,12 @@ function textWithIcons(img, c, text, color, key) {
 
 // The grass, path, beds and pad only change when the window resizes, so they're
 // drawn once into their own canvas and copied each frame.
+// It sits on its own canvas layer behind the game canvas, so each frame only has to clear and
+// draw the moving things; the browser composites the two layers (cheaper than copying the
+// whole background into the game canvas every frame, which matters on Chromebook GPUs).
 const bgCanvas = document.createElement('canvas');
+bgCanvas.className = 'field-bg';
+$('field-wrap').prepend(bgCanvas);
 const bgCtx = bgCanvas.getContext('2d');
 let bgKey = '';
 function drawBackground() {
@@ -1924,6 +1947,8 @@ function drawBackground() {
     bgKey = key;
     bgCanvas.width = canvas.width;
     bgCanvas.height = canvas.height;
+    bgCanvas.style.width = W + 'px';
+    bgCanvas.style.height = H + 'px';
     const b = bgCtx;
     b.setTransform(DPR, 0, 0, DPR, 0, 0);
     const gw = GRASS.x1 - GRASS.x0, gh = GRASS.y1 - GRASS.y0;
@@ -1961,7 +1986,7 @@ function drawBackground() {
     for (let x = 90; x < W; x += 90) b.fillRect(x, GRASS.y1 + 4, 2, LAYOUT.pad);
     b.fillRect(0, GRASS.y1 + 4 + (LAYOUT.pad - 4) / 2, W, 2);
   }
-  ctx.drawImage(bgCanvas, 0, 0, W, H);
+  ctx.clearRect(0, 0, W, H);   // the background shows through from its own layer underneath
 }
 
 // Draws the current frame of a Gubby animation centred on (x, y).
@@ -2221,6 +2246,32 @@ function setText(el, v) {
 function setShown(el, show) { if (el._shown !== show) { el._shown = show; el.style.display = show ? '' : 'none'; } }
 function setDisabled(el, d) { if (el.disabled !== d) el.disabled = d; }
 
+// Stats menu. Rows are built once; values refresh (change-only) while the menu is open.
+// Dev Mode's top-ups aren't counted: they never touch totalEarned / totalRare.
+const fmtStat = (n) => n >= 1e6 ? fmt(n) : Math.floor(n).toLocaleString();
+const STAT_ROWS = [
+  [`${THEME.main.icon} Carrots ever earned`, () => fmtStat(state.totalEarned)],
+  [`${THEME.rare.icon} Clovers ever earned`, () => fmtStat(state.totalRare)],
+  ['😋 Snacks eaten',  () => fmtStat(state.collected)],
+  ['🎩 Family rank',   () => THEME.ranks[rankIndex()].name],
+  ['⏱️ Time played',   () => fmtTime((Date.now() - state.startedAt) / 1000)],
+];
+const statCells = [];
+function buildStats() {
+  const body = $('stats-rows');
+  for (const [label] of STAT_ROWS) {
+    const tr = document.createElement('tr');
+    const name = document.createElement('td'), value = document.createElement('td');
+    name.textContent = label;
+    tr.append(name, value);
+    body.appendChild(tr);
+    statCells.push(value);
+  }
+}
+function renderStats() {
+  STAT_ROWS.forEach(([, get], i) => setText(statCells[i], get()));
+}
+
 // Family rank in the header, with a toast when you're promoted.
 let shownRank = -1;
 function renderRank() {
@@ -2303,6 +2354,7 @@ function renderUI() {
   $('skills-btn').title = rareOn ? '' : `Buy ${THEME.rareUnlock.name} in the shop first`;
 
   if (!$('skill-overlay').classList.contains('hidden')) renderSkills();
+  if (!$('stats').classList.contains('hidden')) renderStats();
 }
 
 // =====================================================================
@@ -2500,9 +2552,23 @@ function save(showToast = false) {
   }
 }
 
+// From before all versions shared one save: if there's no main save, use the old calm or
+// dyslexic save that got furthest (most carrots ever earned). The old saves are left alone.
+function adoptOldModeSave() {
+  let best = null, bestEarned = -1;
+  for (const key of OLD_MODE_SAVE_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+      const earned = raw ? (JSON.parse(raw).totalEarned || 0) : -1;
+      if (raw && earned > bestEarned) { best = raw; bestEarned = earned; }
+    } catch (e) {}
+  }
+  return best;
+}
+
 function load() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY) || adoptOldModeSave();
     if (raw) {
       const saved = JSON.parse(raw);
       const base = freshState();
@@ -2617,6 +2683,7 @@ function init() {
   resize();
   buildShop();
   buildSkills();
+  buildStats();
 
   $('main-icon').innerHTML = iconizeText(THEME.main.icon);
   $('rare-icon').innerHTML = iconizeText(THEME.rare.icon);
@@ -2650,7 +2717,7 @@ function init() {
     opt.append(radio, m.label);
     $('color-modes').appendChild(opt);
   }
-  // Calm and dyslexia-friendly are separate versions (URL flags, own saves), so switching reloads.
+  // Calm and dyslexia-friendly are URL flags (they all share one save), so switching reloads.
   $('opt-calm').checked = CALM;
   $('opt-dyslexic').checked = DYSLEXIC;
   const switchVersion = () => {
@@ -2661,6 +2728,18 @@ function init() {
   $('opt-calm').addEventListener('change', switchVersion);
   $('opt-dyslexic').addEventListener('change', switchVersion);
   settingsBtn.addEventListener('click', () => toggleSettings());
+  // Stats menu: same popup style as Settings. Clicking anywhere else (including the
+  // Settings button) closes it, so only one popup is ever open.
+  const statsEl = $('stats'), statsBtn = $('stats-btn');
+  const toggleStats = (show = statsEl.classList.contains('hidden')) => {
+    statsEl.classList.toggle('hidden', !show);
+    statsBtn.setAttribute('aria-expanded', show);
+    if (show) renderStats();
+  };
+  statsBtn.addEventListener('click', () => toggleStats());
+  document.addEventListener('pointerdown', (e) => {
+    if (!statsEl.contains(e.target) && !statsBtn.contains(e.target)) toggleStats(false);
+  });
   document.addEventListener('pointerdown', (e) => {
     if (!settingsEl.contains(e.target) && !settingsBtn.contains(e.target)) toggleSettings(false);
   });
@@ -2673,7 +2752,7 @@ function init() {
   $('dev-btn').addEventListener('click', toggleDevMode);
   document.addEventListener('keydown', (e) => {
     if ((e.key === 't' || e.key === 'T') && state.cloversUnlocked) toggleSkills();
-    if (e.key === 'Escape') { toggleSkills(false); toggleSettings(false); }
+    if (e.key === 'Escape') { toggleSkills(false); toggleSettings(false); toggleStats(false); }
   });
 
   // Simulation runs on its own timer in small fixed steps (so it keeps going
@@ -2690,9 +2769,14 @@ function init() {
     while (acc >= STEP) { const d = Math.min(acc, 0.05); update(d); acc -= d; }
   }, 16);
   const skillOverlay = $('skill-overlay');
-  function frame() {
+  let lastDraw = 0;
+  function frame(now) {
     // Schedule the next frame first, so one bad frame can never stop drawing for good.
     requestAnimationFrame(frame);
+    // Draw at most ~60 times a second: on 90/120Hz screens the extra frames look the same
+    // but double the drawing work. (The simulation runs on its own timer either way.)
+    if (now - lastDraw < 15) return;
+    lastDraw = now;
     // The skill tree covers the whole screen, so don't paint the field underneath it.
     // Also skip while the field has no size yet (e.g. the page loaded in a hidden window).
     if (W > 0 && H > 0 && skillOverlay.classList.contains('hidden')) draw();
