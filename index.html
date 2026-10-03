@@ -509,6 +509,24 @@ const THEME = {
     connoisseur: { icon: '🥕', name: 'Carrot Connoisseur', desc: 'Carrots (patches and bundles) worth +30%' },
     rabbitsFoot: { icon: '🐾', name: "Rabbit's Foot",    desc: '+2% chance a snack gives 10x clovers' },
     carrotRain:  { icon: '🌧️', name: 'Carrot Rain',      desc: 'Carrots sometimes shower onto the grass (more often each level)' },
+    deepBurrows: { icon: '🕳️', name: 'Deep Burrows',     desc: 'Carrot Rain drops +8 more carrots' },
+    lopEars:     { icon: '🐰', name: 'Lop Ears',         desc: 'Munch radius +5%' },
+    // Baby Gubby variants (East, past Big Family). Each level adds one baby of that kind.
+    baby_golden: { icon: '🌟', name: 'Golden Baby',      desc: '+1 Golden Baby: snacks it eats are worth x3, and it eats golden snacks' },
+    baby_ninja:  { icon: '🥷', name: 'Ninja Baby',       desc: '+1 Ninja Baby: hops twice as fast' },
+    baby_lucky:  { icon: '🍀', name: 'Lucky Baby',       desc: '+1 Lucky Baby: snacks it eats give x3 clovers' },
+    baby_chonk:  { icon: '🍙', name: 'Chonky Baby',      desc: '+1 Chonky Baby: eats every snack near its target in one big bite' },
+    baby_mob:    { icon: '🎩', name: 'Mob Baby',         desc: '+1 Mob Baby: wears a tiny fedora; its snacks are worth x1.5 and it eats golden snacks' },
+    baby_ghost:  { icon: '👻', name: 'Ghost Baby',       desc: '+1 Ghost Baby: snatches snacks out of the air before they land' },
+    // More for the other branches
+    gourmet:     { icon: '🍽️', name: 'Gourmet Gubby',    desc: 'Snacks Gubby munches himself are worth +15%' },
+    jackpot:     { icon: '🎰', name: 'Jackpot',          desc: '+1% chance any snack is worth x10' },
+    fairyQueen:  { icon: '👑', name: 'Fairy Queen',      desc: 'Snacks the fairies grab are worth +100%' },
+    cloverField: { icon: '☘️', name: 'Clover Field',     desc: 'All clover gains +10%' },
+    superMagnet: { icon: '🧲', name: 'Super Magnet',     desc: 'Snack Magnet pulls twice as fast' },
+    wishingStar: { icon: '🌠', name: 'Wishing Star',     desc: 'The Godbunny also leaves +50 clovers' },
+    consigliere: { icon: '📜', name: 'Consigliere',      desc: 'Heists and Godbunny gifts are worth +25%' },
+    speakeasy:   { icon: '🍸', name: 'Speakeasy',        desc: 'Bootleg carrot juice is worth x2' },
     fluffle:     { icon: '🐰', name: 'Fluffle',          desc: '+2 free Baby Gubbies (a fluffle is a group of bunnies)' },
     fedora:      { icon: '🎩', name: 'Fedora',           desc: 'Gubby wears a fedora. Purely cosmetic. Deeply respected' },
   },
@@ -1012,6 +1030,24 @@ const CORE_SKILLS = [
   { id: 'binky',       x: -2, y: 3,  max: 3,  cost: 120, growth: 2,   parent: 'lifetime' },
   { id: 'connoisseur', x: -3, y: 3,  max: 5,  cost: 60,  growth: 1.6, parent: 'binky' },
   { id: 'fluffle',     x: -4, y: 3,  max: 3,  cost: 180, growth: 1.9, parent: 'connoisseur' },
+  { id: 'deepBurrows', x: -4, y: 4,  max: 3,  cost: 300, growth: 1.8, parent: 'carrotRain' },
+  { id: 'lopEars',     x: -3, y: 5,  max: 5,  cost: 100, growth: 1.6, parent: 'fedora' },
+  // Baby Gubby variants: run east from Big Family (4,0); one baby per level
+  { id: 'baby_golden', x: 5,  y: 0,  max: 3,  cost: 150, growth: 2,   parent: 'helperCap' },
+  { id: 'baby_ninja',  x: 6,  y: 0,  max: 3,  cost: 200, growth: 2,   parent: 'baby_golden' },
+  { id: 'baby_mob',    x: 7,  y: 0,  max: 3,  cost: 400, growth: 2,   parent: 'baby_ninja' },
+  { id: 'baby_lucky',  x: 5,  y: 1,  max: 3,  cost: 250, growth: 2,   parent: 'baby_golden' },
+  { id: 'baby_chonk',  x: 6,  y: 1,  max: 3,  cost: 300, growth: 2,   parent: 'baby_lucky' },
+  { id: 'baby_ghost',  x: 7,  y: 1,  max: 3,  cost: 500, growth: 2,   parent: 'baby_chonk' },
+  // More for the other branches
+  { id: 'gourmet',     x: -5, y: 0,  max: 5,  cost: 120, growth: 1.6, parent: 'goldenMult' },
+  { id: 'jackpot',     x: -5, y: 1,  max: 5,  cost: 200, growth: 1.7, parent: 'gourmet' },
+  { id: 'fairyQueen',  x: -1, y: 6,  max: 3,  cost: 200, growth: 1.8, parent: 'fairyDust' },
+  { id: 'cloverField', x: 1,  y: 3,  max: 10, cost: 60,  growth: 1.4, parent: 'rareChance' },
+  { id: 'superMagnet', x: 1,  y: 6,  max: 1,  cost: 300, growth: 1,   parent: 'magnet' },
+  { id: 'wishingStar', x: 0,  y: 7,  max: 4,  cost: 200, growth: 1.8, parent: 'cloverRain' },
+  { id: 'consigliere', x: 5,  y: -3, max: 4,  cost: 400, growth: 1.8, parent: 'godfather' },
+  { id: 'speakeasy',   x: 5,  y: -4, max: 3,  cost: 600, growth: 2,   parent: 'hushMoney' },
   { id: 'rabbitsFoot', x: -2, y: 4,  max: 5,  cost: 150, growth: 1.7, parent: 'binky' },
   { id: 'carrotRain',  x: -3, y: 4,  max: 3,  cost: 250, growth: 2,   parent: 'rabbitsFoot' },
   { id: 'fedora',      x: -2, y: 5,  max: 1,  cost: 77,  growth: 1,   parent: 'rabbitsFoot' },
@@ -1061,6 +1097,7 @@ function freshState() {
     devMode: false,   // Dev Mode: infinite carrots and clovers
     devSaved: null,   // real balances, put back when Dev Mode is turned off
     robot: false,
+    bedSpots: {},     // garden bed plant spots: source id -> [{ side, u, v }], see bedSpot()
     collected: 0,
     owned: Object.fromEntries(SOURCES.map((s, i) => [s.id, i === 0 ? 1 : 0])), // start with one of the first source
     levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])),
@@ -1092,9 +1129,11 @@ function lvl(id) { return state.skills[id] || 0; }
 // Derived stats
 // =====================================================================
 
-const munchRadius    = () => (38 + 8 * lvl('appetite')) * (1 + 0.08 * lvl('root'));
+const munchRadius    = () => (38 + 8 * lvl('appetite')) * (1 + 0.08 * lvl('root')) * (1 + 0.05 * lvl('lopEars'));
 const valueMult      = () => (1 + 0.25 * lvl('tasty')) * (1 + 0.2 * lvl('value')) * (1 + THEME.rankBonus * rankIndex());
-const sourceValMult  = (s) => (1 + 0.5 * lvl(s.id + '_val')) * (itemEmoji(s) === '🥕' ? 1 + 0.3 * lvl('connoisseur') : 1);
+const sourceValMult  = (s) => (1 + 0.5 * lvl(s.id + '_val'))
+  * (itemEmoji(s) === '🥕' ? 1 + 0.3 * lvl('connoisseur') : 1)
+  * (s.id === 'truck' ? 1 + lvl('speakeasy') : 1);   // Speakeasy: bootleg juice x2 per level
 const sourceDiscount = () => 1 - 0.04 * lvl('refuse');       // An Offer You Can't Refuse
 const binkyEvery     = () => [0, 15, 11, 8][lvl('binky')] || 0; // seconds between binkies (0 = never)
 const rabbitsFootChance = () => 0.02 * lvl('rabbitsFoot');
@@ -1108,7 +1147,8 @@ function rankIndex() {
 const sourceMax      = (s) => s.fixedMax ? s.max : s.max + 5 * lvl(s.id + '_cap');
 const tossMult       = () => (1 + 0.1 * lvl('rate')) * Math.pow(1.5, lvl('rate2'));
 // Clovers per snack eaten: 1 base, +1 per Four-Leaf Luck and per "Lucky <source>" level, x1.5 per Clover Charm.
-const cloversPerSnack = (sourceId) => (1 + lvl('rareChance') + lvl(sourceId + '_clover')) * Math.pow(1.5, lvl('rareValue')) * (1 + 0.2 * lvl('hushMoney'));
+const cloversPerSnack = (sourceId) => (1 + lvl('rareChance') + lvl(sourceId + '_clover')) * Math.pow(1.5, lvl('rareValue'))
+  * (1 + 0.2 * lvl('hushMoney')) * (1 + 0.1 * lvl('cloverField'));
 const goldenChance   = () => BASE_GOLDEN_CHANCE + 0.01 * lvl('golden');
 const goldenMult     = () => 2 + lvl('goldenMult');               // golden snacks: 2x, +1x per Golden Tummy level
 const dupeChance     = () => 0.05 * lvl('dupe');
@@ -1232,15 +1272,37 @@ function unitPos(s, k) {
   if (s._posGen !== layoutGen) { s._pos = []; s._posGen = layoutGen; }
   return s._pos[k] || (s._pos[k] = fixedUnitPos(s, k));
 }
-function fixedUnitPos(s, k) {
-  if (s.zone === 'bed') {
-    // Units alternate left/right bed; plant types interleave down the rows.
-    const p = BED_TYPES.indexOf(s.id);
-    const rows = Math.ceil(SPRITES_PER_TYPE / 2) * BED_TYPES.length;
-    const row = Math.floor(k / 2) * BED_TYPES.length + p;
-    const top = GRASS.y0 + 28, span = GRASS.y1 - GRASS.y0 - 56;
-    return { x: k % 2 ? W - LAYOUT.bed / 2 : LAYOUT.bed / 2, y: top + span * row / Math.max(1, rows - 1) };
+// Garden bed plants each get a random spot when they first appear (i.e. when bought). Spots are
+// stored in the save as fractions of the bed (side 0 = left / 1 = right, u = across, v = down)
+// so they stay put across reloads and window sizes. New spots keep a little distance from
+// existing plants so they don't stack exactly on top of each other.
+function bedSpotPos(spot) {
+  const x = (spot.side ? W - LAYOUT.bed : 0) + LAYOUT.bed * spot.u;
+  const y = GRASS.y0 + 50 + (GRASS.y1 - GRASS.y0 - 60) * spot.v;   // room above for tall plants
+  return { x, y };
+}
+function newBedSpot() {
+  const taken = [];
+  for (const id of BED_TYPES) for (const sp of (state.bedSpots[id] || [])) taken.push(bedSpotPos(sp));
+  let best = null, bestGap = -1;
+  for (let tries = 0; tries < 24; tries++) {
+    const spot = { side: Math.random() < 0.5 ? 0 : 1, u: rand(0.3, 0.7), v: Math.random() };
+    const p = bedSpotPos(spot);
+    let gap = Infinity;
+    for (const q of taken) gap = Math.min(gap, Math.hypot(p.x - q.x, p.y - q.y));
+    if (gap > bestGap) { best = spot; bestGap = gap; }
+    if (gap >= 40) break;   // roomy enough
   }
+  return best;
+}
+function bedSpot(s, k) {
+  const spots = state.bedSpots[s.id] || (state.bedSpots[s.id] = []);
+  while (spots.length <= k) spots.push(newBedSpot());
+  return spots[k];
+}
+
+function fixedUnitPos(s, k) {
+  if (s.zone === 'bed') return bedSpotPos(bedSpot(s, k));
   // pad: each building type gets its own stretch of the pad, units spaced evenly in it
   const p = PAD_TYPES.indexOf(s.id);
   const seg = W / PAD_TYPES.length;
@@ -1394,21 +1456,29 @@ function spawnItem(src, props) {
   if (items.length > MAX_ITEMS + 20) items.shift().dead = true; // hard ceiling, just in case
 }
 
-function collect(it, by) {
+// `by` is who ate it: 'player', 'helper', 'orbiter' (fairy). For helpers, `baby` is the
+// baby itself, so its variant can boost the snack (see BABY_KINDS).
+function collect(it, by, baby) {
   if (it.dead) return;
   it.dead = true;
-  const v = it.value * (by === 'helper' ? helperValMult() : 1);
+  const kind = baby ? BABY_KINDS[baby.kind] : null;
+  let v = it.value;
+  if (by === 'helper') v *= helperValMult() * (kind ? kind.value : 1);
+  if (by === 'player') v *= 1 + 0.15 * lvl('gourmet');      // Gourmet Gubby
+  if (by === 'orbiter') v *= 1 + lvl('fairyQueen');         // Fairy Queen
+  const jackpot = Math.random() < 0.01 * lvl('jackpot');    // Jackpot: x10
+  if (jackpot) v *= 10;
   state.main += v;
   state.totalEarned += v;
   state.collected++;
   earnLog.push([performance.now(), v]);
-  const important = it.golden || by !== 'helper';
-  addFloat('+' + fmt(v), it.x, it.y, it.golden ? '#ffd166' : '#ffffff', important);
+  const important = it.golden || jackpot || by !== 'helper';
+  addFloat('+' + fmt(v) + (jackpot ? ' 🎰x10' : ''), it.x, it.y, it.golden || jackpot ? '#ffd166' : '#ffffff', important);
 
   // Once unlocked, every snack also gives clovers (like gum in Garbage Growth).
   if (state.cloversUnlocked) {
     let c = it.clovers;
-    if (by === 'helper') c *= 1 + 0.5 * lvl('sniffers');
+    if (by === 'helper') c *= (1 + 0.5 * lvl('sniffers')) * (kind ? kind.clover : 1);
     if (it.golden) c += 25 * lvl('cloverRain');
     const lucky = Math.random() < rabbitsFootChance();   // Rabbit's Foot jackpot
     if (lucky) c *= 10;
@@ -1464,14 +1534,69 @@ function updateRobot(dt) {
   robot.moving = true;
 }
 
-function syncHelpers() {
-  if (!W || !H) return; // field not laid out yet; spawning now would pile them in the corner
-  const count = state.levels.helper + 2 * lvl('fluffle');   // bought + free ones from Fluffle
-  while (helpers.length < count) {
-    helpers.push({ x: W / 2 + rand(-60, 60), y: H / 2 + rand(-60, 60), target: null, cd: 0,
-                   facingRight: Math.random() < 0.5, moving: false, anim: newAnim('idle', true), wander: null });
+// Baby Gubby variants. 'normal' are the bought ones (+ Fluffle); each other kind comes from its
+// baby_<kind> skill, one baby per level. speed/value/clover multiply that baby's stats; eatsGolden
+// lets it eat golden snacks; midair lets it grab snacks still flying; chomp eats every snack within
+// that many px of its target too. Looks: tint washes the sprite in a colour, hat is an emoji worn
+// on top, alpha makes it see-through, scale changes its size. `sheet` can name a custom sprite
+// sheet (same layout as gubby-sheet.png) once there's art for that baby; until then it's tinted.
+const BABY_KINDS = {
+  normal: { speed: 1,   value: 1,   clover: 1 },
+  golden: { speed: 1,   value: 3,   clover: 1, eatsGolden: true, tint: '#ffcf40' },
+  ninja:  { speed: 2,   value: 1,   clover: 1, tint: '#3a3550' },
+  lucky:  { speed: 1,   value: 1,   clover: 3, tint: '#57d957' },
+  chonk:  { speed: 0.8, value: 1,   clover: 1, chomp: 50, scale: 1.0 },
+  mob:    { speed: 1,   value: 1.5, clover: 1, eatsGolden: true, hat: '🎩' },
+  ghost:  { speed: 1.2, value: 1,   clover: 1, midair: true, alpha: 0.55, tint: '#cfe8ff' },
+};
+
+// Tinted copies of the Gubby sheet, made once per colour (cheap to draw after that).
+const tintedSheets = new Map();
+function babySheet(kind) {
+  const K = BABY_KINDS[kind];
+  if (K.sheet && K.sheet.complete && K.sheet.naturalWidth) return K.sheet;
+  if (!K.tint || !sheet.complete || !sheet.naturalWidth) return sheet;
+  let c = tintedSheets.get(K.tint);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = sheet.naturalWidth; c.height = sheet.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(sheet, 0, 0);
+    g.globalCompositeOperation = 'source-atop';   // only colour the bunny, not the transparent space
+    g.globalAlpha = 0.5;
+    g.fillStyle = K.tint;
+    g.fillRect(0, 0, c.width, c.height);
+    tintedSheets.set(K.tint, c);
   }
-  helpers.length = count;
+  return c;
+}
+
+// Keeps the helpers array matching what's owned. Only re-checks when something that changes
+// the count happens (helperDirty), so it costs nothing on ordinary frames.
+let helperDirty = true;
+const helperWant = {}, helperHave = {};
+function syncHelpers() {
+  if (!helperDirty) return;
+  if (!W || !H) return; // field not laid out yet; spawning now would pile them in the corner
+  helperDirty = false;
+  for (const kind in BABY_KINDS) {
+    helperWant[kind] = kind === 'normal'
+      ? state.levels.helper + 2 * lvl('fluffle')   // bought + free ones from Fluffle
+      : lvl('baby_' + kind);
+    helperHave[kind] = 0;
+  }
+  for (const h of helpers) helperHave[h.kind]++;
+  for (let i = helpers.length - 1; i >= 0; i--) {   // too many of a kind (e.g. after a reset)
+    const h = helpers[i];
+    if (helperHave[h.kind] > helperWant[h.kind]) { helperHave[h.kind]--; helpers.splice(i, 1); }
+  }
+  for (const kind in BABY_KINDS) {
+    while (helperHave[kind] < helperWant[kind]) {
+      helpers.push({ kind, x: W / 2 + rand(-60, 60), y: H / 2 + rand(-60, 60), target: null, cd: 0,
+                     facingRight: Math.random() < 0.5, moving: false, anim: newAnim('idle', true), wander: null });
+      helperHave[kind]++;
+    }
+  }
 }
 
 // =====================================================================
@@ -1535,9 +1660,9 @@ function updateEvents(dt) {
     g.life -= dt;
     if (g.life <= 0) ev.godbunny = null;
     else if (mouse.inside && Math.hypot(mouse.x - g.x, mouse.y - g.y) < munchRadius() + 16) {
-      const gift = Math.max(100, incomeRate() * 30) * (1 + 0.5 * lvl('godfather'));
+      const gift = Math.max(100, incomeRate() * 30) * (1 + 0.5 * lvl('godfather')) * (1 + 0.25 * lvl('consigliere'));
       earn(gift);
-      const c = earnRare(cloversPerSnack('sprout') * 25);
+      const c = earnRare(cloversPerSnack('sprout') * 25 + 50 * lvl('wishingStar'));
       addFloat('+' + fmt(gift), g.x, g.y - 24, '#ffd166', true);
       toast(`${E.godbunny.hat} ${E.godbunny.thanks}: ${cur(gift)}${c ? ` and ${THEME.rare.icon}${fmt(c)}` : ''}`, 3500);
       ev.godbunny = null;
@@ -1554,7 +1679,7 @@ function updateEvents(dt) {
     if (car.x >= car.nextDrop && car.nextDrop < W) {
       car.nextDrop += car.gap;
       spawnItem({ x: car.x, y: LAYOUT.path / 2 }, {
-        kind: 'main', icon: E.heist.bag, value: Math.max(50, incomeRate() * 1.5),
+        kind: 'main', icon: E.heist.bag, value: Math.max(50, incomeRate() * 1.5) * (1 + 0.25 * lvl('consigliere')),
         clovers: cloversPerSnack('sprout') * 3, golden: false, size: 32, force: true,
       });
     }
@@ -1567,7 +1692,7 @@ function updateEvents(dt) {
       // Calm: no car racing past; the bags just appear on the grass (spawnItem fades them in).
       for (let b = 1; b <= bags; b++) {
         spawnItem({ x: W * b / (bags + 1), y: LAYOUT.path / 2 }, {
-          kind: 'main', icon: E.heist.bag, value: Math.max(50, incomeRate() * 1.5),
+          kind: 'main', icon: E.heist.bag, value: Math.max(50, incomeRate() * 1.5) * (1 + 0.25 * lvl('consigliere')),
           clovers: cloversPerSnack('sprout') * 3, golden: false, size: 32, force: true,
         });
       }
@@ -1592,7 +1717,7 @@ function updateEvents(dt) {
     }
     if (rain.left <= 0) ev.rain = null;
   } else if (lvl('carrotRain') > 0 && (ev.rainIn -= dt * lvl('carrotRain')) <= 0) {
-    ev.rain = { left: E.carrotRain.drops, next: 0 };
+    ev.rain = { left: E.carrotRain.drops + 8 * lvl('deepBurrows'), next: 0 };
     ev.rainIn = rand(...E.carrotRain.every);
     toast(`🌧️ ${E.carrotRain.shout}`, 2000);
   }
@@ -1748,7 +1873,8 @@ function update(dt) {
       if (it.age > lifetime && !(it.golden && omerta)) { it.dead = true; continue; }   // Omertà: golden snacks stay
       if (magnet && mouse.inside && !CALM) {   // calm: snacks don't slide toward Gubby
         const dx = mouse.x - it.x, dy = mouse.y - it.y, d = Math.hypot(dx, dy);
-        if (d < r + magnet && d > 1) { it.x += (dx / d) * 110 * dt; it.y += (dy / d) * 110 * dt; }
+        const pull = 110 * (lvl('superMagnet') ? 2 : 1) * dt;   // Super Magnet doubles the pull
+        if (d < r + magnet && d > 1) { it.x += (dx / d) * pull; it.y += (dy / d) * pull; }
       }
     }
     if (mouse.inside && Math.hypot(it.x - mouse.x, it.y - mouse.y) < r) { collect(it, 'player'); continue; }
@@ -1762,6 +1888,7 @@ function update(dt) {
   syncHelpers();
   const speed = helperSpeed();
   for (const h of helpers) {
+    const K = BABY_KINDS[h.kind];
     h.anim.facingRight = h.facingRight;
     stepAnim(h.anim, h.anim.name === 'collect' ? dt / helperEatTime() : dt); // Quick Nibbles speeds up the eating animation too
     if (h.cd > 0) { h.cd -= dt; h.moving = false; continue; }
@@ -1769,7 +1896,7 @@ function update(dt) {
       h.target = null;
       let best = null, bestD = Infinity;
       for (const it of items) {
-        if (!it.landed || it.claimed || (it.golden && !braveBabies)) continue;
+        if ((!it.landed && !K.midair) || it.claimed || (it.golden && !braveBabies && !K.eatsGolden)) continue;   // Ghost Babies grab mid-air; Golden/Mob Babies eat golden snacks
         const d = Math.hypot(it.x - h.x, it.y - h.y);
         if (d < bestD) { bestD = d; best = it; }
       }
@@ -1784,7 +1911,7 @@ function update(dt) {
       tx = h.wander.x; ty = h.wander.y;
     }
     const dx = tx - h.x, dy = ty - h.y, d = Math.hypot(dx, dy);
-    const step = speed * dt * (h.target ? 1 : 0.3);
+    const step = speed * K.speed * dt * (h.target ? 1 : 0.3);
     h.moving = d > 0.5;
     if (h.moving) {
       h.x += (dx / d) * Math.min(step, d);
@@ -1793,7 +1920,14 @@ function update(dt) {
     }
     setLoop(h.anim, h.moving ? 'hop' : 'idle');
     if (h.target && d < 12) {
-      collect(h.target, 'helper');
+      const bite = h.target;
+      collect(bite, 'helper', h);
+      if (K.chomp) {   // Chonky Baby: one big bite takes everything around the target too
+        for (const it of items) {
+          if (!it.dead && it.landed && Math.hypot(it.x - bite.x, it.y - bite.y) < K.chomp
+              && (!it.golden || braveBabies || K.eatsGolden)) collect(it, 'helper', h);
+        }
+      }
       h.target = null;
       playOnce(h.anim, 'collect');
       h.cd = animLength('collect') / 1000 * helperEatTime(); // stand still while eating
@@ -2011,7 +2145,9 @@ function drawBackground() {
 }
 
 // Draws the current frame of a Gubby animation centred on (x, y).
-function drawGubby(x, y, scale, anim) {
+// `img` is the sprite sheet to use (a baby variant's tinted copy, or the hat sheet); any sheet
+// with the same layout as gubby-sheet.png works. `alpha` < 1 makes it see-through (Ghost Baby).
+function drawGubby(x, y, scale, anim, img = sheet, alpha = 1) {
   if (!sheet.complete) return;
   const def = animDef(anim);
   const f = def.frames[anim.idx % def.frames.length];
@@ -2021,29 +2157,49 @@ function drawGubby(x, y, scale, anim) {
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.beginPath(); ctx.ellipse(x, feetY, w * 0.3, 5 * scale, 0, 0, Math.PI * 2); ctx.fill();
   ctx.imageSmoothingEnabled = scale < 1; // smooth when shrinking, crisp pixels when enlarging
-  ctx.drawImage(sheet, f * fw, def.row * fh, fw, fh,
+  if (alpha !== 1) ctx.globalAlpha = alpha;
+  ctx.drawImage(img, f * fw, def.row * fh, fw, fh,
     Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
+  if (alpha !== 1) ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
 }
 
+// Gubby wearing his hat (Fedora skill). When the sprite chat's hat sheet exists, set
+// GUBBY_HAT_SHEET_SRC to it (same layout as gubby-sheet.png) and Gubby will use it instead
+// of the 🎩 emoji drawn on top.
+const GUBBY_HAT_SHEET_SRC = '';
+const gubbyHatSheet = GUBBY_HAT_SHEET_SRC ? Object.assign(new Image(), { src: GUBBY_HAT_SHEET_SRC }) : null;
+const hatSheetReady = () => !!(gubbyHatSheet && gubbyHatSheet.complete && gubbyHatSheet.naturalWidth);
+
+const unitDrawList = [];   // reused every frame by draw() to sort producers by depth
 function draw() {
   drawBackground();
   const lifetime = itemLifetime();
   const omerta = lvl('omerta') > 0;
   const r = munchRadius();
 
-  // Sources: walkers on the path, plants in the beds, buildings on the pad
+  // Sources: walkers on the path, plants in the beds, buildings on the pad. Everything is
+  // drawn in order of how low it stands, so things lower on screen overlap things behind them.
   const now = performance.now();
+  let nUnits = 0;
   for (const s of SOURCES) {
     const shown = spritesShown(s);
     for (let k = 0; k < shown; k++) {
+      const u = unitDrawList[nUnits] || (unitDrawList[nUnits] = { s: null, k: 0, x: 0, y: 0 });
       const pos = unitPos(s, k);
-      const since = now - (lastToss[s.id + k] || 0);
-      const bob = since < 200 && !CALM ? -6 * Math.sin((since / 200) * Math.PI) : 0;
-      if (s.grow) drawGrowSprite(GROW_SHEETS[s.grow], growStage(s, k), pos.x, pos.y + 22);
-      else if (s.sheet) drawSheetSprite(SOURCE_SHEETS[s.sheet], k, pos.x, pos.y + bob, now, unitFacingRight(s, k), unitMoving(s, k));
-      else drawSourceSprite(s.sprites ? s.sprites[k] : s.icon, pos.x, pos.y + bob, s.zone === 'pad' ? 46 : 34);
+      u.s = s; u.k = k; u.x = pos.x; u.y = pos.y;   // copy: path positions share one object
+      nUnits++;
     }
+  }
+  unitDrawList.length = nUnits;
+  unitDrawList.sort((a, b) => a.y - b.y);
+  for (const u of unitDrawList) {
+    const s = u.s, k = u.k;
+    const since = now - (lastToss[s.id + k] || 0);
+    const bob = since < 200 && !CALM ? -6 * Math.sin((since / 200) * Math.PI) : 0;
+    if (s.grow) drawGrowSprite(GROW_SHEETS[s.grow], growStage(s, k), u.x, u.y + 22);
+    else if (s.sheet) drawSheetSprite(SOURCE_SHEETS[s.sheet], k, u.x, u.y + bob, now, unitFacingRight(s, k), unitMoving(s, k));
+    else drawSourceSprite(s.sprites ? s.sprites[k] : s.icon, u.x, u.y + bob, s.zone === 'pad' ? 46 : 34);
   }
 
   // Items
@@ -2095,7 +2251,12 @@ function draw() {
   // Helpers (baby gubbies), sorted in place so lower ones draw on top
   // Calm mode hides them: lots of little hopping bunnies is a lot of motion. They still eat.
   if (!CALM) helpers.sort((a, b) => a.y - b.y);
-  if (!CALM) for (const h of helpers) drawGubby(h.x, h.y, HELPER_SCALE, h.anim);
+  if (!CALM) for (const h of helpers) {
+    const K = BABY_KINDS[h.kind];
+    const scale = HELPER_SCALE * (K.scale || 0.75) / 0.75;
+    drawGubby(h.x, h.y, scale, h.anim, babySheet(h.kind), K.alpha || 1);
+    if (K.hat) emoji(K.hat, h.x + (h.facingRight ? 2 : -2), h.y - 22 * scale / HELPER_SCALE, 16);   // Mob Baby's tiny fedora
+  }
 
   // Orbiters
   if (mouse.inside) {
@@ -2122,8 +2283,9 @@ function draw() {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(mouse.x, mouse.y, r, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
-    drawGubby(mouse.x, mouse.y, PLAYER_SCALE, player.anim);
-    if (lvl('fedora')) emoji('🎩', mouse.x + (player.facingRight ? 3 : -3), mouse.y - 36, 28);   // Fedora skill: very respected
+    const hatSheet = lvl('fedora') && hatSheetReady();
+    drawGubby(mouse.x, mouse.y, PLAYER_SCALE, player.anim, hatSheet ? gubbyHatSheet : sheet);
+    if (lvl('fedora') && !hatSheet) emoji('🎩', mouse.x + (player.facingRight ? 3 : -3), mouse.y - 36, 28);   // Fedora skill (emoji until the hat sheet exists)
   }
 }
 
@@ -2236,6 +2398,7 @@ function buyUpgrade(u, max) {
     state.levels[u.id]++;
     bought++;
   } while (max && bought < 1000);
+  helperDirty = true;
   renderUI();
 }
 
@@ -2482,6 +2645,7 @@ function buySkill(s) {
   if (state.rare < cost) return;
   state.rare -= cost;
   state.skills[s.id] = l + 1;
+  helperDirty = true;   // baby variants / Fluffle may add babies
   toast(s.max > 1 ? `${s.name} → level ${l + 1}` : `Learned ${s.name}!`);
   renderUI();
   renderSkills();
@@ -2668,6 +2832,7 @@ function hardReset() {
   btn.textContent = 'Reset';
   state = freshState();
   items = []; helpers = []; floats = [];
+  helperDirty = true;
   earnLog.length = 0;
   save();
   $('win-overlay').classList.add('hidden');
