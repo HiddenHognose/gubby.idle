@@ -15,11 +15,14 @@
   canvas { image-rendering: pixelated; display: block; }
   .checker { background: repeating-conic-gradient(#3a3556 0 25%, #332f4c 0 50%) 0 0 / 16px 16px; }
   button { background: #353052; color: #f1edff; border: 1px solid #4a4470; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button.on { background: #3fa468; border-color: #7ee0a1; }
+  #variants { gap: 8px; }
 </style>
 </head>
 <body>
 <h1>Gubby Sprite Maker</h1>
 <p id="info"></p>
+<div class="row" id="variants"></div>
 
 <div class="row">
   <div class="card"><h2>Close-up: hop, idle and collect, facing left (2×)</h2><canvas id="detail" class="checker"></canvas></div>
@@ -34,10 +37,9 @@
 </div>
 <div class="row">
   <div class="card"><h2>Final sheet (1×)</h2><canvas id="big" class="checker"></canvas></div>
-  <div class="card"><h2>Export</h2><button id="save">Save to project</button> <button id="dl">Download PNG</button> <span id="saved" style="color:#7ee0a1"></span></div>
+  <div class="card"><h2>Export</h2><button id="save">Save this variant</button> <button id="saveAll">Save all variants</button> <button id="dl">Download PNG</button> <span id="saved" style="color:#7ee0a1"></span></div>
 </div>
 
-<canvas id="sheet" hidden></canvas>
 
 <script>
 // Geometry is authored in 32-unit "design space" and rendered at SC pixels per unit.
@@ -54,6 +56,46 @@ const PAL = {
   x: 'rgba(24, 18, 48, 0.35)', // ground shadow
 };
 const TONES = ['W', 'w', 's', 'S'];
+
+// ---------- variants ----------
+// Every variant keeps the base Gubby's shape, face and animations. A variant can:
+//   pal:    override palette letters (fur ramp W/w/s/S, outlines O/P/o, inner ear i/I, face ink K)
+//   extras: function (head, pose) → extra parts (accessories) that ride on the head, drawn after it.
+//           A part can set `tones` (its own 4-letter light→dark ramp) and `band` ({ from, to, tones: [lit, dark] },
+//           a stripe across the part between those local y values), plus `over` (parts it draws an inner line
+//           against, in colour `line`), `shadowOn` (parts it casts a thin contact shadow onto) and
+//           `dent: { depth, width }` (a notch in the top, like a fedora pinch).
+// Classic saves as gubby-sheet.png; every other variant saves as gubby-<id>-sheet.png (+ .json).
+const VARIANTS = {
+  classic: { name: 'Classic', pal: {} },
+  cocoa: {
+    name: 'Cocoa',
+    pal: { O: '#2e1c14', P: '#5a3a28', o: '#5c3b26',
+           W: '#cfa37c', w: '#ad7d55', s: '#8d5f3e', S: '#6b452c',
+           i: '#f2c9b8', I: '#d39c8d' },
+  },
+  smoky: {
+    name: 'Smoky',
+    pal: { O: '#24212e', P: '#454157', o: '#4d4962',
+           W: '#c3c0d2', w: '#a19eb6', s: '#837f9a', S: '#66637e',
+           i: '#ecc9d8', I: '#c99bb2' },
+  },
+  don: {
+    name: 'Don Gubby',
+    // classic white fur under a charcoal fedora with a black band; the ears poke up through the hat
+    pal: { A: '#8b8799', B: '#6c687e', C: '#524e64', D: '#3c394d', E: '#2a2733', F: '#17151d' },
+    extras: (head) => ({
+      hatCrown: { cx: head.cx - 0.3, cy: head.cy - 6.3, rx: 4.6, ry: 2.9, rot: head.rot || 0,
+                  dent: { depth: 0.62, width: 0.3 },
+                  tones: ['A', 'B', 'C', 'D'], band: { from: 0.2, to: 0.75, tones: ['E', 'F'] },
+                  over: ['frontEar', 'backEar', 'head'], line: 'F' },
+      hatBrim:  { cx: head.cx - 0.3, cy: head.cy - 4.3, rx: 7.4, ry: 1.25, rot: head.rot || 0,
+                  tones: ['A', 'B', 'C', 'D'], over: ['hatCrown', 'frontEar', 'backEar', 'head'], line: 'F', shadowOn: ['head'] },
+    }),
+  },
+};
+let V = VARIANTS.classic;
+let pal = PAL;
 const LIGHT = (() => { const v = [-0.4, -0.55, 0.73]; const m = Math.hypot(...v); return v.map(c => c / m); })();
 
 // ---------- geometry helpers ----------
@@ -153,6 +195,7 @@ function buildParts(pose) {
     pawNear: { cx: 10.9 + pose.paw[0], cy: 29 + pose.paw[1] + feetLift, rx: 2.4 * pose.pawStretch, ry: 1.7, rot: pose.pawRot },
     head,
   };
+  if (V.extras) Object.assign(parts, V.extras(head, pose));   // accessories, placed before the slide and tilt
 
   // slide the whole bunny sideways (keeps long poses inside the frame)
   if (pose.dx) for (const k of Object.keys(parts)) parts[k] = { ...parts[k], cx: parts[k].cx + pose.dx };
@@ -188,15 +231,25 @@ function drawFrame(pose) {
   const col = Array(FW * FH).fill(null), who = Array(FW * FH).fill(null);
   const at = (x, y) => (x < 0 || y < 0 || x >= FW || y >= FH) ? null : who[y * FW + x];
 
-  for (const name of ORDER) {
-    const p = parts[name];
+  // accessory parts (from the variant) draw after the base parts, in the order they're listed
+  const order = [...ORDER, ...Object.keys(parts).filter(k => !ORDER.includes(k))];
+  const tonesOf = (name) => (parts[name] && parts[name].tones) || TONES;
+  const lineOver = (name) => LINE_OVER[name] || (parts[name] && parts[name].over);
+  const shadowFrom = (name) => [...(SHADOW_FROM[name] || []),
+    ...order.filter(k => parts[k].shadowOn && parts[k].shadowOn.includes(name))];
+
+  for (const name of order) {
+    const p = parts[name], tones = tonesOf(name);
     for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
       const hit = sample(p, (x + 0.5) / SC, (y + 0.5) / SC);
       if (!hit) continue;
+      if (p.dent && hit.ly < -p.dent.depth && Math.abs(hit.lx) < p.dent.width) continue;   // e.g. the pinch in a fedora crown
       if (SOFT_BOTTOM[name]) hit.ny = Math.min(hit.ny, SOFT_BOTTOM[name]);
       const nz = Math.sqrt(Math.max(0, 1 - hit.nx ** 2 - hit.ny ** 2));
       const I = hit.nx * LIGHT[0] + hit.ny * LIGHT[1] + nz * LIGHT[2] + (LIGHT_BIAS[name] || 0);
-      let c = TONES[I > 0.78 ? 0 : I > 0.32 ? 1 : I > 0.02 ? 2 : 3];
+      const shade = I > 0.78 ? 0 : I > 0.32 ? 1 : I > 0.02 ? 2 : 3;
+      let c = tones[shade];
+      if (p.band && hit.ly > p.band.from && hit.ly < p.band.to) c = p.band.tones[shade < 2 ? 0 : 1];
       if (name.endsWith('Ear')) {  // inner ear
         const front = name === 'frontEar';
         const ix = hit.lx + (front ? 0.12 : -0.05), iy = hit.ly + 0.05;
@@ -209,20 +262,22 @@ function drawFrame(pose) {
   // contact shadows: darken pixels tucked under the part above
   const out = col.slice();
   for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
-    const n = who[y * FW + x], src = SHADOW_FROM[n];
-    if (!src) continue;
-    const t = TONES.indexOf(col[y * FW + x]);
+    const n = who[y * FW + x];
+    if (!n) continue;
+    const src = shadowFrom(n), tones = tonesOf(n);
+    if (!src.length) continue;
+    const t = tones.indexOf(col[y * FW + x]);
     if (t < 0) continue;
     const under = d => src.includes(at(x, y - d));
-    if ([...Array(SC)].some((_, d) => under(d + 1))) out[y * FW + x] = TONES[Math.min(3, Math.max(t + 1, 2))];
-    // the ruff only gets the thin near band, so the chest fluff stays bright
-    else if (n !== 'ruff' && [...Array(SC)].some((_, d) => under(d + 1 + SC))) out[y * FW + x] = TONES[Math.min(3, t + 1)];
+    if ([...Array(SC)].some((_, d) => under(d + 1))) out[y * FW + x] = tones[Math.min(3, Math.max(t + 1, 2))];
+    // the ruff and head only get the thin near band, so the chest fluff and face stay bright
+    else if (n !== 'ruff' && n !== 'head' && [...Array(SC)].some((_, d) => under(d + 1 + SC))) out[y * FW + x] = tones[Math.min(3, t + 1)];
   }
 
   // inner lines where a part overlaps a part behind it
   for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
-    const behind = LINE_OVER[who[y * FW + x]];
-    if (behind && N4.some(([dx, dy]) => behind.includes(at(x + dx, y + dy)))) out[y * FW + x] = 'o';
+    const behind = lineOver(who[y * FW + x]);
+    if (behind && N4.some(([dx, dy]) => behind.includes(at(x + dx, y + dy)))) out[y * FW + x] = parts[who[y * FW + x]].line || 'o';
   }
 
   // silhouette outline
@@ -273,77 +328,113 @@ function paint(ctx, pixels, ox, oy, flip) {
   for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
     const c = pixels[y * FW + x];
     if (!c) continue;
-    ctx.fillStyle = PAL[c];
+    ctx.fillStyle = pal[c];
     ctx.fillRect(ox + (flip ? FW - 1 - x : x), oy + y, 1, 1);
   }
 }
 
-// ---------- build sheet ----------
+// ---------- build sheets ----------
 // One row per animation: frames facing left, then the same frames mirrored to face right.
 const ROWS = ['hop', 'idle', 'collect'];
 const COLS = Math.max(...ROWS.map(r => ANIMS[r].length)) * 2;
-const sheet = document.getElementById('sheet');
-sheet.width = FW * COLS; sheet.height = FH * ROWS.length;
-const sctx = sheet.getContext('2d');
-const meta = { image: 'gubby-sheet.png', frameWidth: FW, frameHeight: FH, animations: {} };
-ROWS.forEach((row, r) => {
-  const frames = ANIMS[row], n = frames.length;
-  frames.forEach((pose, i) => {
-    const px = drawFrame(pose);
-    paint(sctx, px, i * FW, r * FH, false);
-    paint(sctx, px, (n + i) * FW, r * FH, true);
+const fileBase = (id) => id === 'classic' ? 'gubby-sheet' : `gubby-${id}-sheet`;
+
+function buildSheet(id) {
+  V = VARIANTS[id];
+  pal = { ...PAL, ...V.pal };
+  const sheet = document.createElement('canvas');
+  sheet.width = FW * COLS; sheet.height = FH * ROWS.length;
+  const sctx = sheet.getContext('2d');
+  const meta = { image: `${fileBase(id)}.png`, variant: V.name, frameWidth: FW, frameHeight: FH, animations: {} };
+  ROWS.forEach((row, r) => {
+    const frames = ANIMS[row], n = frames.length;
+    frames.forEach((pose, i) => {
+      const px = drawFrame(pose);
+      paint(sctx, px, i * FW, r * FH, false);
+      paint(sctx, px, (n + i) * FW, r * FH, true);
+    });
+    const durations = frames.map(f => f.ms);
+    meta.animations[`${row}_left`]  = { row: r, frames: frames.map((_, i) => i),     durations };
+    meta.animations[`${row}_right`] = { row: r, frames: frames.map((_, i) => n + i), durations };
   });
-  const durations = frames.map(f => f.ms);
-  meta.animations[`${row}_left`]  = { row: r, frames: frames.map((_, i) => i),     durations };
-  meta.animations[`${row}_right`] = { row: r, frames: frames.map((_, i) => n + i), durations };
-});
-document.getElementById('info').textContent =
-  `${FW}×${FH} frames, sheet ${sheet.width}×${sheet.height}. ` +
-  ROWS.map((r, i) => `Row ${i + 1}: ${r} (${ANIMS[r].length} frames left, then mirrored right)`).join('. ') + '.';
+  return { id, sheet, meta };
+}
 
-// full sheet with frame grid
-const big = document.getElementById('big');
-big.width = sheet.width; big.height = sheet.height;
-const bctx = big.getContext('2d');
-bctx.drawImage(sheet, 0, 0);
-bctx.strokeStyle = 'rgba(126,224,161,.3)';
-for (let i = 1; i < COLS; i++) { bctx.beginPath(); bctx.moveTo(i * FW + .5, 0); bctx.lineTo(i * FW + .5, big.height); bctx.stroke(); }
-for (let r = 1; r < ROWS.length; r++) { bctx.beginPath(); bctx.moveTo(0, r * FH + .5); bctx.lineTo(big.width, r * FH + .5); bctx.stroke(); }
+// ---------- page ----------
+let cur = null;
+const picker = document.getElementById('variants');
+for (const [id, v] of Object.entries(VARIANTS)) {
+  const b = document.createElement('button');
+  b.textContent = v.name; b.dataset.id = id;
+  b.onclick = () => show(id);
+  picker.appendChild(b);
+}
 
-// close-up of the left-facing halves of both rows
-const detail = document.getElementById('detail'), D = 2, half = COLS / 2;
-detail.width = FW * half * D; detail.height = FH * ROWS.length * D;
-const dctx = detail.getContext('2d'); dctx.imageSmoothingEnabled = false;
-dctx.drawImage(sheet, 0, 0, FW * half, sheet.height, 0, 0, detail.width, detail.height);
+function show(id) {
+  cur = buildSheet(id);
+  for (const b of picker.children) b.classList.toggle('on', b.dataset.id === id);
+  const { sheet } = cur;
+  document.getElementById('info').textContent =
+    `${V.name}: ${FW}×${FH} frames, sheet ${sheet.width}×${sheet.height}, saves as sprites/${fileBase(id)}.png. ` +
+    ROWS.map((r, i) => `Row ${i + 1}: ${r} (${ANIMS[r].length} frames left, then mirrored right)`).join('. ') + '.';
 
-// animated previews (using each frame's own duration)
-function animate(id, anim) {
+  // full sheet with frame grid
+  const big = document.getElementById('big');
+  big.width = sheet.width; big.height = sheet.height;
+  const bctx = big.getContext('2d');
+  bctx.drawImage(sheet, 0, 0);
+  bctx.strokeStyle = 'rgba(126,224,161,.3)';
+  for (let i = 1; i < COLS; i++) { bctx.beginPath(); bctx.moveTo(i * FW + .5, 0); bctx.lineTo(i * FW + .5, big.height); bctx.stroke(); }
+  for (let r = 1; r < ROWS.length; r++) { bctx.beginPath(); bctx.moveTo(0, r * FH + .5); bctx.lineTo(big.width, r * FH + .5); bctx.stroke(); }
+
+  // close-up of the left-facing halves of every row
+  const detail = document.getElementById('detail'), D = 2, half = COLS / 2;
+  detail.width = FW * half * D; detail.height = FH * ROWS.length * D;
+  const dctx = detail.getContext('2d'); dctx.imageSmoothingEnabled = false;
+  dctx.drawImage(sheet, 0, 0, FW * half, sheet.height, 0, 0, detail.width, detail.height);
+  document.getElementById('saved').textContent = '';
+}
+
+// animated previews (using each frame's own duration), always showing the current variant
+function animate(id, key) {
   const c = document.getElementById(id), x = c.getContext('2d'); x.imageSmoothingEnabled = false;
   let f = 0;
   const step = () => {
+    const anim = cur.meta.animations[key];
+    f %= anim.frames.length;
     x.clearRect(0, 0, c.width, c.height);
-    x.drawImage(sheet, anim.frames[f] * FW, anim.row * FH, FW, FH, 0, 0, c.width, c.height);
+    x.drawImage(cur.sheet, anim.frames[f] * FW, anim.row * FH, FW, FH, 0, 0, c.width, c.height);
     setTimeout(step, anim.durations[f]);
-    f = (f + 1) % anim.frames.length;
+    f++;
   };
   step();
 }
-animate('hopL', meta.animations.hop_left);
-animate('hopR', meta.animations.hop_right);
-animate('idleL', meta.animations.idle_left);
-animate('idleR', meta.animations.idle_right);
-animate('collectL', meta.animations.collect_left);
-animate('collectR', meta.animations.collect_right);
 
+show('classic');
+for (const row of ROWS) {
+  animate(`${row}L`, `${row}_left`);
+  animate(`${row}R`, `${row}_right`);
+}
+
+async function saveSheet({ id, sheet, meta }) {
+  const blob = await new Promise(done => sheet.toBlob(done, 'image/png'));
+  const r1 = await fetch(`/save/${fileBase(id)}.png`, { method: 'POST', body: blob });
+  const r2 = await fetch(`/save/${fileBase(id)}.json`, { method: 'POST', body: JSON.stringify(meta, null, 2) });
+  return r1.ok && r2.ok;
+}
+const status = (t) => { document.getElementById('saved').textContent = t; };
 document.getElementById('dl').onclick = () => {
-  const a = document.createElement('a'); a.download = 'gubby-sheet.png'; a.href = sheet.toDataURL('image/png'); a.click();
+  const a = document.createElement('a'); a.download = `${fileBase(cur.id)}.png`; a.href = cur.sheet.toDataURL('image/png'); a.click();
 };
-document.getElementById('save').onclick = () => sheet.toBlob(async blob => {
-  const r1 = await fetch('/save/gubby-sheet.png', { method: 'POST', body: blob });
-  const r2 = await fetch('/save/gubby-sheet.json', { method: 'POST', body: JSON.stringify(meta, null, 2) });
-  document.getElementById('saved').textContent = r1.ok && r2.ok
-    ? 'Saved sprites/gubby-sheet.png + .json' : `Save failed (${r1.status}/${r2.status})`;
-}, 'image/png');
+document.getElementById('save').onclick = async () => {
+  status(await saveSheet(cur) ? `Saved sprites/${fileBase(cur.id)}.png + .json` : 'Save failed');
+};
+document.getElementById('saveAll').onclick = async () => {
+  const shown = cur.id, done = [];
+  for (const id of Object.keys(VARIANTS)) if (await saveSheet(buildSheet(id))) done.push(fileBase(id));
+  show(shown);
+  status(`Saved ${done.length}/${Object.keys(VARIANTS).length}: ${done.join(', ')}`);
+};
 </script>
 </body>
 </html>

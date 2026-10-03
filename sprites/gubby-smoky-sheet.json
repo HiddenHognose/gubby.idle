@@ -1,6 +1,6 @@
 {
-  "image": "gubby-sheet.png",
-  "variant": "Classic",
+  "image": "gubby-smoky-sheet.png",
+  "variant": "Smoky",
   "frameWidth": 64,
   "frameHeight": 64,
   "animations": {

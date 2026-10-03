@@ -1,6 +1,6 @@
 {
-  "image": "gubby-sheet.png",
-  "variant": "Classic",
+  "image": "gubby-don-sheet.png",
+  "variant": "Don Gubby",
   "frameWidth": 64,
   "frameHeight": 64,
   "animations": {
