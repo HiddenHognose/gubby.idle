@@ -1239,6 +1239,123 @@ ITEM_ICONS.rain = item(() => render([
     ({ id: 'drop' + i, ramp: 'sky', shade: { hi: -9, lo: 9 }, test: strip([[x + 1, y - 2], [x, y]], 0.7) })),
 ]));
 
+// ---- skills added later (baby variants and more) ----
+Object.assign(PAL, {
+  dirt: '#7a5236', dirtS: '#5a3a24', dirtL: '#9c6e4a',
+  nori: '#24402e', noriS: '#16291d', noriL: '#3a5e44',
+  olive: '#7aa83a', oliveS: '#557a24', oliveL: '#a6d060',
+});
+
+// 🕳️ Deep Burrows: a dirt mound around a dark burrow, with a carrot top poking out
+ITEM_ICONS.burrow = item(() => render([
+  { id: 'mound', ramp: 'dirt', shade: { hi: -0.5, lo: 0.4 }, test: (x, y) => blob(16, 23, 14.6, 7.4, 0.06, 9)(x, y) && y < 29.6 },
+  { id: 'hole', ramp: 'inner', shade: { hi: -9, lo: 9 }, test: ell(16, 22, 8.6, 4.4) },
+  { id: 'leafA', group: 'top', ramp: 'leaf', shade: { hi: -9, lo: 9 }, test: ell(14.4, 15.6, 1.4, 4, -0.35) },
+  { id: 'leafB', group: 'top', ramp: 'leafL', shade: { hi: -9, lo: 9 }, test: ell(17.6, 15, 1.4, 4.4, 0.3) },
+  { id: 'carrotTop', ramp: 'carrot', shade: { hi: -0.4, lo: 0.3 }, test: ell(16, 20.6, 3.2, 2) },
+], ({ put }) => { for (const [x, y] of [[5, 21], [27, 22], [9, 27], [23, 27]]) put(x, y, 'dirtS'); }));
+
+// 🥷 Ninja Baby: a little bunny in a dark hood with a red headband, Gubby eyes peeking out of the slit
+ITEM_ICONS.ninja = item(() => render([
+  { id: 'tailB', group: 'band', ramp: 'ribbonS', shade: { hi: -9, lo: 9 }, test: strip([[25, 15], [30, 19.6]], 1) },
+  { id: 'tailA', group: 'band', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: strip([[25, 14.6], [30.4, 13.6]], 1) },
+  { id: 'earL', ramp: 'navy', test: ell(11, 8, 2.8, 6.8, -0.2) },
+  { id: 'earR', ramp: 'navy', test: ell(21, 8, 2.8, 6.8, 0.2) },
+  { id: 'head', ramp: 'navy', shade: { hi: -0.6, lo: 0.5 }, test: fluffy(16, 20.4, 11.6, 9.4, 14, 0.06) },
+  { id: 'band', ramp: 'ribbon', shade: { hi: -9, lo: 9 }, test: (x, y) => fluffy(16, 20.4, 11.6, 9.4, 14, 0.06)(x, y) && y > 12.6 && y < 15.4 },
+  { id: 'slit', ramp: 'wfur', shade: { hi: -9, lo: 9 }, test: rrect(7.6, 17, 24.4, 22, 2.2) },
+], ({ put }) => {
+  stamp(put, 10, 18, ['kk.', 'kkk', 'kkk'], ink);
+  stamp(put, 19, 18, ['.kk', 'kkk', 'kkk'], ink);
+}));
+
+// 🍙 Chonky Baby: a rice ball with a strip of nori
+ITEM_ICONS.riceBall = item(() => {
+  const ball = (x, y) => poly([[16, 1], [31.6, 29], [0.4, 29]])(x, y) && ell(16, 19, 14.4, 13)(x, y);
+  return render([
+    { id: 'rice', ramp: 'white', shade: { hi: -0.6, lo: 0.45 }, test: ball },
+    { id: 'nori', ramp: 'nori', shade: { hi: -0.5, lo: 0.5 }, test: (x, y) => ball(x, y) && x > 10 && x < 22 && y > 19 },
+  ], ({ put, who }) => { for (const [x, y] of [[13, 11], [18, 14], [9, 18], [22, 19], [15, 16]]) if (who[y * S + x] === 'rice') put(x, y, 'whiteS'); });
+});
+
+// 👻 Ghost Baby: a little bunny-eared ghost with a wavy hem
+ITEM_ICONS.ghost = item(() => render([
+  { id: 'earL', ramp: 'cloud', test: ell(10.4, 7, 2.4, 5.4, -0.25) },
+  { id: 'earR', ramp: 'cloud', test: ell(21.6, 7, 2.4, 5.4, 0.25) },
+  { id: 'sheet', ramp: 'cloud', shade: { hi: -0.6, lo: 0.45 },
+    test: (x, y) => ell(16, 15, 10.4, 9)(x, y) || (x > 5.6 && x < 26.4 && y >= 15 && y < 26.6 + 2 * Math.sin((x - 5.6) * 0.95)) },
+], ({ put }) => {
+  stamp(put, 11, 13, ['kk', 'kk', 'kk'], ink);
+  stamp(put, 19, 13, ['kk', 'kk', 'kk'], ink);
+  stamp(put, 14, 19, ['.kk.', 'k..k', '.kk.'], ink);
+}));
+
+// 🍽️ Gourmet Gubby: a plate between a fork and a knife
+ITEM_ICONS.plate = item(() => render([
+  { id: 'plate', ramp: 'white', shade: { hi: -0.6, lo: 0.4 }, test: ell(16, 17, 10, 10) },
+  { id: 'well', group: 'plateIn', ramp: 'cloudS', shade: { hi: -9, lo: 9 }, test: ell(16, 17, 6.4, 6.4) },
+  { id: 'wellL', group: 'plateIn', ramp: 'cloud', shade: { hi: -9, lo: 9 }, test: ell(16.6, 17.6, 5.6, 5.6) },
+  { id: 'fork', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: (x, y) => strip([[3, 13], [3, 30]], 0.9)(x, y) || rrect(1, 4, 5, 13, 1)(x, y) },
+  { id: 'knife', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: (x, y) => strip([[29, 18], [29, 30]], 0.9)(x, y) || poly([[28, 4], [31, 6], [30.6, 18], [28, 18]])(x, y) },
+], ({ put }) => { for (let y = 4; y <= 9; y++) put(3, y, 'steel'); }));
+
+// ☘️ Clover Field: a three-leaf shamrock
+ITEM_ICONS.shamrock = item(() => {
+  const A = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
+  const leaves = A.map((a, i) => {
+    const lx = 16 + Math.cos(a) * 5.6, ly = 13.4 + Math.sin(a) * 5.6, px = -Math.sin(a) * 2, py = Math.cos(a) * 2;
+    return { id: 'leaf' + i, ramp: 'clover', shade: { hi: -0.5, lo: 0.5 },
+      test: (x, y) => ell(lx + px, ly + py, 3.6, 3.6)(x, y) || ell(lx - px, ly - py, 3.6, 3.6)(x, y) ||
+        ell(16 + Math.cos(a) * 2.6, 13.4 + Math.sin(a) * 2.6, 2.4, 2.4)(x, y) };
+  });
+  return render([
+    { id: 'stem', ramp: 'cloverS', shade: { hi: -9, lo: 9 }, test: strip([[16, 15], [17, 22], [20.6, 29.6]], 0.9) },
+    ...leaves,
+  ], ({ put }) => {
+    for (const a of A) for (let r = 2.2; r <= 7.4; r += 1.1) put(Math.round(16 + Math.cos(a) * r), Math.round(13.4 + Math.sin(a) * r), 'cloverL');
+  });
+});
+
+// 🧲 Super Magnet: a tilted red-and-silver horseshoe magnet with pull lines
+ITEM_ICONS.superMagnet = item(() => {
+  const t = (test) => xf(test, { cx: 16, cy: 16, rot: 0.75, dx: -2, dy: -2, sc: 0.85 });
+  return render([
+    { id: 'magnet', ramp: 'ribbon', shade: { hi: -0.6, lo: 0.4 }, test: t((x, y) => (ell(16, 14, 12, 11)(x, y) && !ell(16, 14, 6, 5.4)(x, y) && y < 19) || rrect(4, 14, 10, 24, 0)(x, y) || rrect(22, 14, 28, 24, 0)(x, y)) },
+    { id: 'tipL', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: t(rrect(4, 24, 10, 29, 0)) },
+    { id: 'tipR', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: t(rrect(22, 24, 28, 29, 0)) },
+  ], ({ put }) => {
+    for (const [x0, y0, x1, y1] of [[22, 25, 27, 30], [25, 21, 30, 24], [18, 28, 21, 31]]) line(put, x0, y0, x1, y1, 'sun');
+  });
+});
+
+// 🌠 Wishing Star: a gold star streaking down with a fading tail
+ITEM_ICONS.shootingStar = item(() => render([
+  { id: 'tailA', group: 'tail', ramp: 'sunL', shade: { hi: -9, lo: 9 }, test: poly([[2, 30], [17, 13], [22, 18]]) },
+  { id: 'tailB', group: 'tail', ramp: 'sun', shade: { hi: -9, lo: 9 }, test: poly([[6, 28], [17.6, 14.6], [20.6, 17.6]]) },
+  { id: 'star', ramp: 'gold', shade: { hi: -0.5, lo: 0.4 }, test: star(21, 11, 9.4, 4) },
+], ({ put }) => { for (const [x, y] of [[4, 8], [9, 4], [28, 26]]) { put(x, y, 'sunL'); put(x + 1, y, 'sun'); put(x - 1, y, 'sun'); put(x, y + 1, 'sun'); put(x, y - 1, 'sun'); } }));
+
+// 🍸 Speakeasy: a martini glass with a speared olive
+ITEM_ICONS.cocktail = item(() => render([
+  { id: 'pick', ramp: 'woodL', shade: { hi: -9, lo: 9 }, test: strip([[20, 3], [12, 13]], 0.6) },
+  { id: 'bowl', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: poly([[3, 6], [29, 6], [16.6, 19], [15.4, 19]]) },
+  { id: 'drink', ramp: 'amber', shade: { hi: -0.5, lo: 0.4 }, test: poly([[6.4, 9], [25.6, 9], [16.4, 18], [15.6, 18]]) },
+  { id: 'olive', ramp: 'olive', shade: { hi: -0.5, lo: 0.4 }, test: ell(13.4, 11.6, 2.6, 2.4) },
+  { id: 'stem', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: rrect(15, 18, 17, 27, 0) },
+  { id: 'base', ramp: 'glassL', shade: { hi: -9, lo: 9 }, test: ell(16, 28, 7, 1.8) },
+], ({ put }) => { put(12, 11, 'berry'); for (let x = 5; x <= 26; x++) put(x, 6, 'cloudL'); }));
+
+// ⏱️ Time played: a silver stopwatch
+ITEM_ICONS.stopwatch = item(() => render([
+  { id: 'crown', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: (x, y) => rrect(13, 1, 19, 4, 0.6)(x, y) || rrect(15, 3, 17, 7, 0)(x, y) },
+  { id: 'button', ramp: 'steelL', shade: { hi: -9, lo: 9 }, test: rrect(23, 6, 27, 10, 0.8, 0) },
+  { id: 'case', ramp: 'steelL', shade: { hi: -0.6, lo: 0.4 }, test: ell(16, 18.6, 12, 12) },
+  { id: 'face', ramp: 'white', shade: { hi: -0.6, lo: 0.6 }, test: ell(16, 18.6, 9.4, 9.4) },
+], ({ put }) => {
+  for (let i = 0; i < 12; i++) { const a = (i * Math.PI) / 6; put(Math.round(16 + Math.cos(a) * 7.6), Math.round(18.6 + Math.sin(a) * 7.6), i % 3 ? 'cloudS' : 'ink'); }
+  line(put, 16, 19, 16, 12, 'ink'); line(put, 16, 19, 20, 21, 'ribbon');
+}));
+
 Object.assign(ICONS, ITEM_ICONS);
 
 // =====================================================================

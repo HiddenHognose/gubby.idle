@@ -254,6 +254,46 @@
     "rain": {
       "col": 6,
       "row": 7
+    },
+    "burrow": {
+      "col": 7,
+      "row": 7
+    },
+    "ninja": {
+      "col": 0,
+      "row": 8
+    },
+    "riceBall": {
+      "col": 1,
+      "row": 8
+    },
+    "ghost": {
+      "col": 2,
+      "row": 8
+    },
+    "plate": {
+      "col": 3,
+      "row": 8
+    },
+    "shamrock": {
+      "col": 4,
+      "row": 8
+    },
+    "superMagnet": {
+      "col": 5,
+      "row": 8
+    },
+    "shootingStar": {
+      "col": 6,
+      "row": 8
+    },
+    "cocktail": {
+      "col": 7,
+      "row": 8
+    },
+    "stopwatch": {
+      "col": 0,
+      "row": 9
     }
   }
 }

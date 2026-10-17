@@ -64,7 +64,9 @@ const TONES = ['W', 'w', 's', 'S'];
 //           A part can set `tones` (its own 4-letter light→dark ramp) and `band` ({ from, to, tones: [lit, dark] },
 //           a stripe across the part between those local y values), plus `over` (parts it draws an inner line
 //           against, in colour `line`), `shadowOn` (parts it casts a thin contact shadow onto) and
-//           `dent: { depth, width }` (a notch in the top, like a fedora pinch).
+//           `dent: { depth, width }` (a notch in the top, like a fedora pinch) or `keep: { from, to }` (only the
+//           stripe between those local y values, like a headband).
+//   shape:  { bodyW, bodyH, ruff, tailDx } scales the body and ruff (a chonkier bunny) and moves the tail.
 // Classic saves as gubby-sheet.png; every other variant saves as gubby-<id>-sheet.png (+ .json).
 const VARIANTS = {
   classic: { name: 'Classic', pal: {} },
@@ -92,6 +94,53 @@ const VARIANTS = {
       hatBrim:  { cx: head.cx - 0.3, cy: head.cy - 4.3, rx: 7.4, ry: 1.25, rot: head.rot || 0,
                   tones: ['A', 'B', 'C', 'D'], over: ['hatCrown', 'frontEar', 'backEar', 'head'], line: 'F', shadowOn: ['head'] },
     }),
+  },
+
+  // ---- baby Gubby kinds (BABY_KINDS in index.html; the Mob Baby uses the Don Gubby sheet) ----
+  golden: {
+    name: 'Golden Baby',
+    pal: { O: '#5a3a10', P: '#8a6020', o: '#b8862a',
+           W: '#fff3b8', w: '#ffd95e', s: '#eab43c', S: '#c38c26',
+           i: '#fff8e0', I: '#f2cc78' },
+  },
+  ninja: {
+    name: 'Ninja Baby',
+    // midnight fur, so the face ink turns pale; a red headband with its knot tails flying out the back
+    pal: { O: '#0e0f1a', P: '#23253c', o: '#15162a',
+           W: '#565a7c', w: '#3e4162', s: '#2e3049', S: '#212338',
+           i: '#6a3a56', I: '#4e2a42', K: '#f4f2ee',
+           R: '#e04048', r: '#a8283a' },
+    extras: (head) => ({
+      headband: { cx: head.cx, cy: head.cy, rx: head.rx + 0.25, ry: head.ry + 0.25, rot: head.rot || 0,
+                  keep: { from: -0.86, to: -0.56 }, tones: ['R', 'R', 'r', 'r'], over: ['head'], line: 'r' },
+      knotA:    { cx: head.cx + 8.4, cy: head.cy - 4.2, rx: 2.4, ry: 0.85, rot: -0.35, tones: ['R', 'R', 'r', 'r'] },
+      knotB:    { cx: head.cx + 8.2, cy: head.cy - 2.8, rx: 2.2, ry: 0.8, rot: 0.45, tones: ['r', 'r', 'r', 'r'] },
+    }),
+  },
+  lucky: {
+    name: 'Lucky Baby',
+    // classic white with minty inner ears and a four-leaf clover tucked in front of the ears
+    pal: { i: '#cdeeb8', I: '#96d27e', G: '#9ae67a', g: '#56be4c', h: '#3c9c40', H: '#2c7a34' },
+    extras: (head) => {
+      const cx = head.cx - 2.6, cy = head.cy - 5.4, r = 1.25, d = 1.15;
+      const leaf = (dx, dy) => ({ cx: cx + dx, cy: cy + dy, rx: r, ry: r, rot: 0, tones: ['G', 'g', 'h', 'H'], line: 'H' });
+      return {
+        cloverA: leaf(-d, -d), cloverB: leaf(d, -d),
+        cloverC: { ...leaf(-d, d), over: ['cloverA'] }, cloverD: { ...leaf(d, d), over: ['cloverB', 'cloverC'] },
+      };
+    },
+  },
+  chonk: {
+    name: 'Chonky Baby',
+    pal: {},
+    shape: { bodyW: 1.4, bodyH: 1.26, ruff: 1.24, tailDx: 1.6 },
+  },
+  ghost: {
+    name: 'Ghost Baby',
+    // pale, cool and glowy (the game also draws it see-through)
+    pal: { O: '#5a6c96', P: '#8296c0', o: '#a8bcdf',
+           W: '#f6fcff', w: '#ddeefc', s: '#bfd8f2', S: '#9dbbe0',
+           i: '#ffffff', I: '#dfeafa', K: '#3a4a70' },
   },
 };
 let V = VARIANTS.classic;
@@ -195,6 +244,13 @@ function buildParts(pose) {
     pawNear: { cx: 10.9 + pose.paw[0], cy: 29 + pose.paw[1] + feetLift, rx: 2.4 * pose.pawStretch, ry: 1.7, rot: pose.pawRot },
     head,
   };
+  // body shape (e.g. Chonky Baby): a wider, taller body and ruff; the body grows upward so the feet stay put
+  if (V.shape) {
+    const { bodyW = 1, bodyH = 1, ruff = 1, tailDx = 0 } = V.shape, b = parts.body;
+    parts.body = { ...b, rx: b.rx * bodyW, ry: b.ry * bodyH, cy: b.cy - b.ry * (bodyH - 1) };
+    parts.ruff = { ...parts.ruff, rx: parts.ruff.rx * ruff, ry: parts.ruff.ry * ruff };
+    parts.tail = { ...parts.tail, cx: parts.tail.cx + tailDx };
+  }
   if (V.extras) Object.assign(parts, V.extras(head, pose));   // accessories, placed before the slide and tilt
 
   // slide the whole bunny sideways (keeps long poses inside the frame)
@@ -244,6 +300,7 @@ function drawFrame(pose) {
       const hit = sample(p, (x + 0.5) / SC, (y + 0.5) / SC);
       if (!hit) continue;
       if (p.dent && hit.ly < -p.dent.depth && Math.abs(hit.lx) < p.dent.width) continue;   // e.g. the pinch in a fedora crown
+      if (p.keep && (hit.ly < p.keep.from || hit.ly > p.keep.to)) continue;                 // only a stripe of it (a headband)
       if (SOFT_BOTTOM[name]) hit.ny = Math.min(hit.ny, SOFT_BOTTOM[name]);
       const nz = Math.sqrt(Math.max(0, 1 - hit.nx ** 2 - hit.ny ** 2));
       const I = hit.nx * LIGHT[0] + hit.ny * LIGHT[1] + nz * LIGHT[2] + (LIGHT_BIAS[name] || 0);
